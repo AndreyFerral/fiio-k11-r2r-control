@@ -22,8 +22,8 @@ internal static class AppStrings
         _ => NavDiag(l)
     };
 
-    public static string StatusConnected(AppLanguage l) => Tr(l, "K11 R2R подключён", "K11 R2R Connected");
-    public static string StatusDisconnected(AppLanguage l) => Tr(l, "Устройство отключено", "Device Disconnected");
+    public static string StatusConnected(AppLanguage l) => Tr(l, "Подключён", "Connected");
+    public static string StatusDisconnected(AppLanguage l) => Tr(l, "Отключён", "Disconnected");
     public static string StatusAudioMuted(AppLanguage l) => Tr(l, "Звук выключен", "Audio Muted");
     public static string StatusAudioActive(AppLanguage l) => Tr(l, "Звук включён", "Audio Active");
     public static string StatusAudioUnknown(AppLanguage l) => Tr(l, "Звук: нет данных", "Audio: Offline");
