@@ -35,7 +35,8 @@ public sealed class SettingsForm : Form
 
     private SegmentedToggle<AppLanguage> _langToggle = null!;
     private Label _pageTitleLabel = null!;
-    private SidebarStatusCard _statusCard = null!;
+    private SidebarConnectionBadge _connectionBadge = null!;
+    private SidebarMuteButton _muteBtn = null!;
     private ModernButton _cancelBtn = null!;
     private ModernButton _applyBtn = null!;
     private ModernButton _saveCloseBtn = null!;
@@ -253,7 +254,8 @@ public sealed class SettingsForm : Form
         _dacConnected = connected;
         _audioMuted = muted;
         _audioEndpoint = connected ? audioEndpoint : null;
-        _statusCard.UpdateState(connected, muted, _config.Language);
+        _connectionBadge.UpdateState(connected, _config.Language);
+        _muteBtn.UpdateState(connected, muted, _config.Language);
         _rebootBtn.Enabled = connected;
         UpdateChannelBalanceBanner();
     }
@@ -316,7 +318,12 @@ public sealed class SettingsForm : Form
             AutoSize = true
         };
 
-        sidebar.Controls.AddRange([brandTitle, brandSub]);
+        _connectionBadge = new SidebarConnectionBadge
+        {
+            Location = new Point(11, 50),
+            Size = new Size(164, 24)
+        };
+        sidebar.Controls.AddRange([brandTitle, brandSub, _connectionBadge]);
 
         NavIconKind[] icons =
         [
@@ -333,7 +340,7 @@ public sealed class SettingsForm : Form
             var btn = new SidebarNavButton
             {
                 IconKind = icons[i],
-                Location = new Point(11, 60 + i * 44),
+                Location = new Point(11, 84 + i * 44),
                 Size = new Size(164, 38)
             };
             btn.Click += (_, _) => SelectPage(idx);
@@ -341,10 +348,10 @@ public sealed class SettingsForm : Form
             sidebar.Controls.Add(btn);
         }
 
-        // Conditional full-surface clickable balance button above status card (visible only when K11 R2R audio is active and L != R)
+        // Bottom sidebar stack: clickable actions only (balance fix, mute toggle, reboot DAC)
         _balanceCard = new SidebarBalanceButton
         {
-            Location = new Point(11, 340),
+            Location = new Point(11, 362),
             Size = new Size(164, 50),
             Visible = false
         };
@@ -357,12 +364,12 @@ public sealed class SettingsForm : Form
             UpdateChannelBalanceBanner();
         };
 
-        _statusCard = new SidebarStatusCard
+        _muteBtn = new SidebarMuteButton
         {
-            Location = new Point(11, 396),
-            Size = new Size(164, 58)
+            Location = new Point(11, 418),
+            Size = new Size(164, 34)
         };
-        _statusCard.MuteClicked += (_, _) => _onToggleMute();
+        _muteBtn.Click += (_, _) => _onToggleMute();
 
         _rebootBtn = new ModernButton
         {
@@ -398,7 +405,7 @@ public sealed class SettingsForm : Form
             ApplyLanguage(lang);
             _onLanguageChanged(lang);
         };
-        sidebar.Controls.AddRange([_balanceCard, _statusCard, _rebootBtn, langLabel, _langToggle]);
+        sidebar.Controls.AddRange([_balanceCard, _muteBtn, _rebootBtn, langLabel, _langToggle]);
 
         // Right Workspace + Footer
         var rightShell = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgWindow };
@@ -461,7 +468,8 @@ public sealed class SettingsForm : Form
 
     private void WireBlurTextInputs(Control root)
     {
-        if (root is not TextBox)
+        bool wrapsTextBox = root is not TextBox && root.Controls.OfType<TextBox>().Any();
+        if (root is not TextBox && !wrapsTextBox)
         {
             root.MouseDown += (_, _) =>
             {
@@ -859,15 +867,37 @@ public sealed class SettingsForm : Form
             {
                 Font = Theme.FontBody,
                 ForeColor = Theme.TextPrimary,
-                Location = new Point(12, 0),
-                Size = new Size(266, 35),
+                BackColor = Theme.BgElevated,
+                Location = new Point(12, 3),
+                Size = new Size(266, 29),
                 TextAlign = ContentAlignment.MiddleLeft
             };
             _hkRowLabels.Add(lbl);
 
             HotkeyCaptureBox box = boxes[i];
-            box.Location = new Point(284, 5);
-            box.Size = new Size(164, 24);
+            box.BorderStyle = BorderStyle.None;
+            var boxWrap = new RoundedCardPanel
+            {
+                Location = new Point(284, 5),
+                Size = new Size(164, 25),
+                CornerRadius = 6f,
+                CardColor = Theme.BgInput,
+                BorderColor = Theme.BorderSubtle
+            };
+            box.Location = new Point(8, Math.Max(2, (boxWrap.Height - box.PreferredHeight) / 2));
+            box.Size = new Size(boxWrap.Width - 16, box.PreferredHeight);
+            void SyncBoxWrapColors()
+            {
+                Color bg = box.Focused ? Theme.BgElevated : Theme.BgInput;
+                box.BackColor = bg;
+                boxWrap.CardColor = bg;
+                boxWrap.BorderColor = box.Focused ? Theme.Accent : Theme.BorderSubtle;
+                boxWrap.Invalidate();
+            }
+            box.GotFocus += (_, _) => SyncBoxWrapColors();
+            box.LostFocus += (_, _) => SyncBoxWrapColors();
+            boxWrap.MouseDown += (_, _) => box.Focus();
+            boxWrap.Controls.Add(box);
 
             var clearBtn = new ModernButton
             {
@@ -879,7 +909,7 @@ public sealed class SettingsForm : Form
             };
             clearBtn.Click += (_, _) => box.Binding = new HotkeyBinding();
 
-            rowBg.Controls.AddRange([lbl, box, clearBtn]);
+            rowBg.Controls.AddRange([lbl, boxWrap, clearBtn]);
             card.Controls.Add(rowBg);
         }
 

@@ -41,23 +41,43 @@ internal sealed class RoundedCardPanel : Panel
         Padding = new Padding(16);
     }
 
+    private Color ResolveParentColor()
+    {
+        Control? p = Parent;
+        while (p is not null)
+        {
+            if (p is RoundedCardPanel card)
+                return card.CardColor;
+            if (p.BackColor != Color.Transparent)
+                return p.BackColor;
+            p = p.Parent;
+        }
+        return Theme.BgWindow;
+    }
+
+    private void PaintCardSurface(Graphics g)
+    {
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.Clear(ResolveParentColor());
+        var rect = new RectangleF(0.5f, 0.5f, Width - 2f, Height - 2f);
+        using var path = Theme.CreateRoundedPath(rect, CornerRadius);
+        using var fill = new SolidBrush(CardColor);
+        g.FillPath(fill, path);
+        if (BorderColor != Color.Transparent)
+        {
+            using var pen = new Pen(BorderColor, 1f);
+            g.DrawPath(pen, path);
+        }
+    }
+
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        Color parentBg = Parent?.BackColor ?? Theme.BgWindow;
-        if (parentBg == Color.Transparent)
-            parentBg = Theme.BgWindow;
-        e.Graphics.Clear(parentBg);
+        PaintCardSurface(e.Graphics);
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
-        using var path = Theme.CreateRoundedPath(rect, CornerRadius);
-        using var fill = new SolidBrush(CardColor);
-        e.Graphics.FillPath(fill, path);
-        using (var pen = new Pen(BorderColor, 1f))
-            e.Graphics.DrawPath(pen, path);
+        PaintCardSurface(e.Graphics);
         base.OnPaint(e);
     }
 }
@@ -1418,62 +1438,26 @@ internal sealed class ModernDelayStepper : Control
     }
 }
 
-internal sealed class SidebarStatusCard : Control
+internal sealed class SidebarConnectionBadge : Control
 {
     private bool _connected;
-    private bool _muted;
-    private bool _hoverMute;
     private AppLanguage _language = AppLanguage.Ru;
 
-    public event EventHandler? MuteClicked;
-
-    public SidebarStatusCard()
+    public SidebarConnectionBadge()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-        // Disable StandardDoubleClick so rapid second clicks on Mute never get swallowed.
-        SetStyle(ControlStyles.StandardDoubleClick, false);
-        Size = new Size(164, 60);
+        Cursor = Cursors.Default;
+        Size = new Size(164, 24);
     }
 
-    public void UpdateState(bool connected, bool muted, AppLanguage language)
+    public void UpdateState(bool connected, AppLanguage language)
     {
+        if (_connected == connected && _language == language)
+            return;
+
         _connected = connected;
-        _muted = muted;
         _language = language;
-        if (!connected)
-            _hoverMute = false;
-        Cursor = connected && _hoverMute ? Cursors.Hand : Cursors.Default;
         Invalidate();
-    }
-
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        bool overMute = _connected && e.Y >= Height / 2;
-        if (overMute != _hoverMute)
-        {
-            _hoverMute = overMute;
-            Cursor = overMute ? Cursors.Hand : Cursors.Default;
-            Invalidate();
-        }
-        base.OnMouseMove(e);
-    }
-
-    protected override void OnMouseLeave(EventArgs e)
-    {
-        if (_hoverMute)
-        {
-            _hoverMute = false;
-            Cursor = Cursors.Default;
-            Invalidate();
-        }
-        base.OnMouseLeave(e);
-    }
-
-    protected override void OnMouseDown(MouseEventArgs e)
-    {
-        if (e.Button == MouseButtons.Left && _connected && e.Y >= Height / 2)
-            MuteClicked?.Invoke(this, EventArgs.Empty);
-        base.OnMouseDown(e);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -1483,53 +1467,95 @@ internal sealed class SidebarStatusCard : Control
         g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         g.Clear(Theme.BgSidebar);
 
-        var outer = new RectangleF(0.5f, 0.5f, Width - 2f, Height - 2f);
-        int midY = Height / 2;
-        using var outerPath = Theme.CreateRoundedPath(outer, 8f);
-        using (var bg = new SolidBrush(Theme.BgInput))
-            g.FillPath(bg, outerPath);
+        var pill = new RectangleF(0.5f, 0.5f, Width - 2f, Height - 2f);
+        using var path = Theme.CreateRoundedPath(pill, 6f);
+        using (var bg = new SolidBrush(Color.FromArgb(24, 28, 37)))
+            g.FillPath(bg, path);
 
-        // Highlight bottom mute row on hover inside clipped rounded group card
-        var oldClip = g.Clip;
-        g.SetClip(outerPath);
-        if (_connected && _hoverMute)
+        Color dotColor = _connected ? Theme.Success : Theme.TextMuted;
+        using (var b = new SolidBrush(dotColor))
+            g.FillEllipse(b, 10f, (Height - 7f) / 2f, 7f, 7f);
+
+        Color textColor = _connected ? Theme.TextPrimary : Theme.TextMuted;
+        string label = _connected ? AppStrings.StatusConnected(_language) : AppStrings.StatusDisconnected(_language);
+        TextRenderer.DrawText(g, label, Theme.FontSmall,
+            new Rectangle(23, 0, Width - 29, Height),
+            textColor,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+    }
+}
+
+internal sealed class SidebarMuteButton : Control
+{
+    private bool _connected;
+    private bool _muted;
+    private bool _hovered;
+    private bool _pressed;
+    private AppLanguage _language = AppLanguage.Ru;
+
+    public SidebarMuteButton()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        SetStyle(ControlStyles.StandardDoubleClick, false);
+        Size = new Size(164, 34);
+    }
+
+    public void UpdateState(bool connected, bool muted, AppLanguage language)
+    {
+        _connected = connected;
+        _muted = muted;
+        _language = language;
+        Enabled = connected;
+        if (!connected)
         {
-            using var hb = new SolidBrush(Theme.BgElevated);
-            g.FillRectangle(hb, 0, midY, Width, Height - midY);
+            _hovered = false;
+            _pressed = false;
         }
+        Cursor = connected ? Cursors.Hand : Cursors.Default;
+        Invalidate();
+    }
 
-        using (var div = new Pen(Theme.BorderSubtle, 1f))
-            g.DrawLine(div, 10, midY, Width - 10, midY);
-        g.Clip = oldClip;
+    protected override void OnMouseEnter(EventArgs e) { if (_connected) { _hovered = true; Invalidate(); } base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { _hovered = false; _pressed = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { if (_connected && e.Button == MouseButtons.Left) { _pressed = true; Invalidate(); } base.OnMouseDown(e); }
+    protected override void OnMouseUp(MouseEventArgs e) { _pressed = false; Invalidate(); base.OnMouseUp(e); }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        g.Clear(Theme.BgSidebar);
+
+        var outer = new RectangleF(0.5f, 0.5f, Width - 2f, Height - 2f);
+        using var outerPath = Theme.CreateRoundedPath(outer, 8f);
+
+        Color bgColor = !_connected
+            ? Theme.BgInput
+            : (_muted
+                ? (_pressed ? Color.FromArgb(44, 22, 26) : (_hovered ? Color.FromArgb(54, 25, 30) : Theme.BgInput))
+                : (_pressed ? Theme.Blend(Theme.BgElevated, Color.Black, 0.16f) : (_hovered ? Theme.BgElevated : Theme.BgInput)));
+        using (var bg = new SolidBrush(bgColor))
+            g.FillPath(bg, outerPath);
 
         Color rimColor = !_connected
             ? Theme.BorderSubtle
-            : (_muted ? Color.FromArgb(165, Theme.Danger) : Color.FromArgb(115, Theme.Success));
+            : (_muted
+                ? (_hovered ? Theme.Danger : Color.FromArgb(145, Theme.Danger))
+                : (_hovered ? Theme.Success : Color.FromArgb(115, Theme.Success)));
         using (var rim = new Pen(rimColor, 1.2f))
             g.DrawPath(rim, outerPath);
 
-        // Row 1: Device connection status (indicator dot + border carry semantic color, text stays neutral)
-        Color connDot = _connected ? Theme.Success : Theme.TextMuted;
-        Color connText = _connected ? Theme.TextPrimary : Theme.TextMuted;
-        string connLabel = _connected ? AppStrings.StatusConnected(_language) : AppStrings.StatusDisconnected(_language);
-        DrawStatusRow(g, 0, midY, connDot, connText, connLabel);
+        Color dotColor = !_connected ? Theme.TextMuted : (_muted ? Theme.Danger : Theme.Success);
+        using (var b = new SolidBrush(dotColor))
+            g.FillEllipse(b, 10f, (Height - 7.5f) / 2f, 7.5f, 7.5f);
 
-        // Row 2: Audio Mute status
-        Color muteDot = !_connected ? Theme.TextMuted : (_muted ? Theme.Danger : Theme.Success);
-        Color muteText = _connected ? Theme.TextPrimary : Theme.TextMuted;
-        string muteLabel = !_connected
+        Color textColor = _connected ? Theme.TextPrimary : Theme.TextMuted;
+        string text = !_connected
             ? AppStrings.StatusAudioUnknown(_language)
             : (_muted ? AppStrings.StatusAudioMuted(_language) : AppStrings.StatusAudioActive(_language));
-        DrawStatusRow(g, midY, Height - midY, muteDot, muteText, muteLabel);
-    }
-
-    private void DrawStatusRow(Graphics g, int y, int h, Color dotColor, Color textColor, string text)
-    {
-        using (var b = new SolidBrush(dotColor))
-            g.FillEllipse(b, 10f, y + (h - 7.5f) / 2f, 7.5f, 7.5f);
-
         TextRenderer.DrawText(g, text, Theme.FontSmall,
-            new Rectangle(23, y, Width - 29, h),
+            new Rectangle(23, 0, Width - 29, Height),
             textColor,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
     }

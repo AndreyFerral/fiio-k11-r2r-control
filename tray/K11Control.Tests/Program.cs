@@ -548,6 +548,7 @@ K11AudioEndpointInfo skewedEp = new("k11-id", "FIIO K11 R2R", "FIIO", -0.5f, 0.9
 K11AudioEndpointInfo nextFixResult = balancedEp;
 bool nextApplyResult = true;
 int fixCalls = 0;
+int muteCalls = 0;
 
 using (var form = new K11Control.UI.SettingsForm(
     new TrayConfig { Language = AppLanguage.Ru },
@@ -557,7 +558,7 @@ using (var form = new K11Control.UI.SettingsForm(
     _ => { },
     () => { },
     _ => { },
-    () => { },
+    () => muteCalls++,
     onApplyWithFeedback: (_, cb) => cb(nextApplyResult),
     onFixBalance: () => { fixCalls++; return nextFixResult; },
     initialAudioEndpoint: skewedEp))
@@ -635,6 +636,21 @@ using (var form = new K11Control.UI.SettingsForm(
     typeof(K11Control.UI.SettingsForm).GetMethod("SelectPage", flags)!.Invoke(form, [2]);
     Assert(applyBtn.Text == "Применить" && borderProp.GetValue(applyBtn) is null && IsBannerShown(),
         $"Switching to another settings page clears transient Apply feedback while keeping sidebar balance alert visible (got '{applyBtn.Text}')");
+
+    // Verify new left sidebar hierarchy & rounded HotkeyCaptureBox wrapping
+    var badge = (Control)typeof(K11Control.UI.SettingsForm).GetField("_connectionBadge", flags)!.GetValue(form)!;
+    var muteBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_muteBtn", flags)!.GetValue(form)!;
+    var navList = (System.Collections.IList)typeof(K11Control.UI.SettingsForm).GetField("_navButtons", flags)!.GetValue(form)!;
+    var firstNav = (Control)navList[0]!;
+    var hkBox = (K11Control.UI.HotkeyCaptureBox)typeof(K11Control.UI.SettingsForm).GetField("_hkToggleOut", flags)!.GetValue(form)!;
+
+    Assert(badge.Bottom < firstNav.Top && muteBtn.Top > balanceCard.Bottom && !muteBtn.Enabled == false,
+        $"Sidebar hierarchy places passive status above nav ({badge.Bottom} < {firstNav.Top}) and Mute button in bottom action stack ({muteBtn.Top} > {balanceCard.Bottom})");
+
+    typeof(Control).GetMethod("OnClick", flags)!.Invoke(muteBtn, [EventArgs.Empty]);
+    Assert(muteCalls == 1, $"Clicking standalone sidebar Mute button invokes toggle callback (calls={muteCalls})");
+    Assert(hkBox.BorderStyle == System.Windows.Forms.BorderStyle.None && hkBox.Parent is { Width: 164, Height: 25 },
+        $"HotkeyCaptureBox renders borderless inside rounded wrapper panel ({hkBox.Parent?.Size})");
 }
 
 // Background-thread Apply callback must marshal to UI thread so WinForms Timer ticks & resets button
