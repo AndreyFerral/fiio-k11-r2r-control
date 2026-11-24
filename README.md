@@ -2,7 +2,7 @@
 
 **English** | [Русский](README.ru.md)
 
-Windows system tray control app and patched `M79` firmware for the **FiiO K11 R2R** DAC/Amp — switch outputs safely, customize the 14-segment LCD and 3-zone RGB lighting over USB, and bind global hotkeys with zero hardware mods and zero writes to MCU Flash.
+**Primary goal:** switch the **FiiO K11 R2R** between **Headphones (`PO`)** and **Speakers (`LO SE`)** in one keypress using a **global Windows hotkey** (`Alt+1` / `Alt+2` / `Alt+3`) — without reaching for the DAC knob and with fixed max-volume `LO` completely removed. Everything else (Gain/Filter toggles, custom 14-segment LCD text & animations, idle screen-off, and 3-zone RGB lighting) grew out of exploring what patched `M79` firmware can do over USB, with zero hardware mods and zero writes to MCU Flash.
 
 > [!WARNING]
 > **Compatibility:** strictly for **FiiO K11 R2R** targeting official firmware **`M79`** (not compatible with the regular non-R2R FiiO K11 or other firmware revisions).
