@@ -1,0 +1,23 @@
+# Bundles & release packages
+dist/
+release/
+
+# Proprietary vendor firmware/tools (keep locally, do not track in git)
+firmware/official/
+
+# Python
+__pycache__/
+*.py[cod]
+firmware/patcher/out/
+
+# .NET
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+
+# OS artifacts
+.DS_Store
+Thumbs.db

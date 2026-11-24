@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run Python patcher tests
+        run: python -m unittest discover -s firmware/patcher/tests -v
+
+      - name: Run .NET tray app tests
+        run: dotnet run --project tray/K11Control.Tests/K11Control.Tests.csproj -c Release
+
+      - name: Publish K11Control (win-x64 self-contained check)
+        run: dotnet publish tray/K11Control/K11Control.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o artifacts/win-x64
