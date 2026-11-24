@@ -644,8 +644,8 @@ using (var form = new K11Control.UI.SettingsForm(
     var firstNav = (Control)navList[0]!;
     var hkBox = (K11Control.UI.HotkeyCaptureBox)typeof(K11Control.UI.SettingsForm).GetField("_hkToggleOut", flags)!.GetValue(form)!;
 
-    Assert(firstNav.Top == 60 && muteBtn.Top > balanceCard.Bottom && muteBtn.Height == rebootBtn.Height,
-        $"Sidebar starts nav at y=60 ({firstNav.Top}) with equal-height bottom buttons ({muteBtn.Height} == {rebootBtn.Height})");
+    Assert(form.ClientSize == new System.Drawing.Size(748, 566) && firstNav.Top == 60 && muteBtn.Top > balanceCard.Bottom && muteBtn.Height == rebootBtn.Height,
+        $"Sidebar starts nav at y=60 ({firstNav.Top}) with compact 566px height and equal-height bottom buttons ({muteBtn.Height} == {rebootBtn.Height})");
 
     typeof(Control).GetMethod("OnClick", flags)!.Invoke(muteBtn, [EventArgs.Empty]);
     Assert(muteCalls == 1 && muteBtn.Text == "Звук включён",

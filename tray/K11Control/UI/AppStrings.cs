@@ -180,7 +180,6 @@ internal static class AppStrings
     public static string RgbSyncAllBtn(AppLanguage l) => Tr(l, "Применить цвет ко всем 3 зонам", "Apply Color to All 3 Zones");
 
     // Hotkeys Page
-    public static string HkCardTitle(AppLanguage l) => Tr(l, "Глобальные горячие клавиши Windows", "Global Windows Hotkeys");
     public static string HkSub(AppLanguage l) => Tr(l, "Кликните по полю и нажмите сочетание клавиш. Esc / Backspace / × — очистить.", "Click a field and press keys. Esc / Backspace / × clears.");
     public static string HkRowToggle(AppLanguage l) => Tr(l, "Переключить выход:", "Toggle Output:");
     public static string HkRowPre(AppLanguage l) => Tr(l, "Колонки (LO SE):", "Speakers (LO SE):");

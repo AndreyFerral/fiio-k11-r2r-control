@@ -110,7 +110,6 @@ public sealed class SettingsForm : Form
     private RgbStudioControl _rgbStudio = null!;
 
     // Hotkeys page
-    private Label _hkTitle = null!;
     private Label _hkSub = null!;
     private readonly List<Label> _hkRowLabels = [];
     private HotkeyCaptureBox _hkToggleOut = null!;
@@ -185,7 +184,7 @@ public sealed class SettingsForm : Form
         BackColor = Theme.BgWindow;
         ForeColor = Theme.TextPrimary;
         Font = Theme.FontBody;
-        ClientSize = new Size(748, 580);
+        ClientSize = new Size(748, 566);
 
         BuildUi();
         WireBlurTextInputs(this);
@@ -344,7 +343,7 @@ public sealed class SettingsForm : Form
         // Bottom sidebar stack: clickable actions only (balance fix, mute toggle, reboot DAC)
         _balanceCard = new SidebarBalanceButton
         {
-            Location = new Point(11, 364),
+            Location = new Point(11, 356),
             Size = new Size(164, 50),
             Visible = false
         };
@@ -359,7 +358,7 @@ public sealed class SettingsForm : Form
 
         _muteBtn = new SidebarMuteButton
         {
-            Location = new Point(11, 420),
+            Location = new Point(11, 412),
             Size = new Size(164, 32)
         };
         _muteBtn.Click += (_, _) => _onToggleMute();
@@ -370,7 +369,7 @@ public sealed class SettingsForm : Form
             ShowResetIcon = true,
             CornerRadius = 8f,
             Font = Theme.FontSmall,
-            Location = new Point(11, 458),
+            Location = new Point(11, 450),
             Size = new Size(164, 32)
         };
         _rebootBtn.Click += (_, _) => _onRebootDac();
@@ -380,12 +379,12 @@ public sealed class SettingsForm : Form
             Text = "LANGUAGE / ЯЗЫК",
             Font = new Font("Segoe UI Semibold", 7.3f, FontStyle.Bold),
             ForeColor = Theme.TextMuted,
-            Location = new Point(16, 508),
+            Location = new Point(16, 496),
             AutoSize = true
         };
         _langToggle = new SegmentedToggle<AppLanguage>
         {
-            Location = new Point(11, 528),
+            Location = new Point(11, 516),
             Size = new Size(164, 34)
         };
         _langToggle.SetItems((AppLanguage.Ru, "RU"), (AppLanguage.En, "EN"));
@@ -823,10 +822,9 @@ public sealed class SettingsForm : Form
     private Panel BuildHotkeysPage()
     {
         var page = new Panel { BackColor = Theme.BgWindow };
-        var card = new RoundedCardPanel { Location = new Point(0, 0), Size = new Size(526, 474) };
+        var card = new RoundedCardPanel { Location = new Point(0, 0), Size = new Size(526, 466) };
 
-        _hkTitle = new Label { Font = Theme.FontSection, ForeColor = Theme.TextPrimary, Location = new Point(16, 12), AutoSize = true };
-        _hkSub = new Label { Font = Theme.FontSmall, ForeColor = Theme.TextMuted, Location = new Point(16, 34), AutoSize = true };
+        _hkSub = new Label { Font = Theme.FontSmall, ForeColor = Theme.TextMuted, Location = new Point(16, 14), AutoSize = true };
 
         _hkToggleOut = new HotkeyCaptureBox();
         _hkPre = new HotkeyCaptureBox();
@@ -843,11 +841,11 @@ public sealed class SettingsForm : Form
 
         HotkeyCaptureBox[] boxes = [_hkToggleOut, _hkPre, _hkPo, _hkLcd, _hkRgb, _hkMute, _hkGainCycle, _hkFilterToggle, _hkReboot];
         _hkRowLabels.Clear();
-        card.Controls.AddRange([_hkTitle, _hkSub]);
+        card.Controls.Add(_hkSub);
 
         for (int i = 0; i < boxes.Length; i++)
         {
-            int y = 60 + i * 40;
+            int y = 40 + i * 40;
             var rowBg = new RoundedCardPanel
             {
                 Location = new Point(16, y),
@@ -908,7 +906,7 @@ public sealed class SettingsForm : Form
 
         _hkResetBtn = new ModernButton
         {
-            Location = new Point(16, 426),
+            Location = new Point(16, 414),
             Size = new Size(198, 34),
             Variant = ButtonVariant.Secondary
         };
@@ -934,7 +932,7 @@ public sealed class SettingsForm : Form
     private Panel BuildDiagnosticsPage()
     {
         var page = new Panel { BackColor = Theme.BgWindow };
-        var card = new RoundedCardPanel { Location = new Point(0, 0), Size = new Size(526, 484) };
+        var card = new RoundedCardPanel { Location = new Point(0, 0), Size = new Size(526, 466) };
 
         // 76px toolbar gives 4px headroom below 32px Row 2 buttons so high-DPI scaling never clips bottom borders
         var toolbar = new Panel
@@ -967,7 +965,7 @@ public sealed class SettingsForm : Form
             BorderStyle = BorderStyle.FixedSingle,
             Font = Theme.FontMono,
             Location = new Point(16, 98),
-            Size = new Size(494, 372)
+            Size = new Size(494, 354)
         };
 
         void ShowResult(string actionLine)
@@ -1113,7 +1111,6 @@ public sealed class SettingsForm : Form
         _rgbStudio.ApplyLanguage(lang);
 
         // Hotkeys page
-        _hkTitle.Text = AppStrings.HkCardTitle(lang);
         _hkSub.Text = AppStrings.HkSub(lang);
         if (_hkRowLabels.Count >= 9)
         {
