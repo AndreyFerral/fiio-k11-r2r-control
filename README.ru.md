@@ -103,4 +103,5 @@ powershell -ExecutionPolicy Bypass -File scripts\build_dist.ps1 -Release -Includ
 ## Технические детали и лицензия
 
 - Карта адресов прошивки `M79`, протокол передачи поверх UAC2 и правила аппаратной безопасности вынесены в [AGENTS.md](AGENTS.md).
+- Вдохновлено проектом [fire1ce/fiio-k11-r2r-double-press-skips-fixed-line-output](https://github.com/fire1ce/fiio-k11-r2r-double-press-skips-fixed-line-output) (идея отключения фиксированного выхода `LO` на `K11 R2R M79`).
 - Код проекта распространяется под лицензией [MIT](LICENSE).

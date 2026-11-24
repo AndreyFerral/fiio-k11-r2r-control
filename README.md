@@ -103,4 +103,5 @@ powershell -ExecutionPolicy Bypass -File scripts\build_dist.ps1 -Release -Includ
 ## Internals & License
 
 - USB transport protocol, hardware safety rules, and `M79` memory map are documented in [AGENTS.md](AGENTS.md).
+- Inspired by [fire1ce/fiio-k11-r2r-double-press-skips-fixed-line-output](https://github.com/fire1ce/fiio-k11-r2r-double-press-skips-fixed-line-output) (the original idea of skipping fixed `LO` on `K11 R2R M79`).
 - Released under the [MIT License](LICENSE).
