@@ -1467,11 +1467,6 @@ internal sealed class SidebarConnectionBadge : Control
         g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         g.Clear(Theme.BgSidebar);
 
-        var pill = new RectangleF(0.5f, 0.5f, Width - 2f, Height - 2f);
-        using var path = Theme.CreateRoundedPath(pill, 6f);
-        using (var bg = new SolidBrush(Color.FromArgb(24, 28, 37)))
-            g.FillPath(bg, path);
-
         Color dotColor = _connected ? Theme.Success : Theme.TextMuted;
         using (var b = new SolidBrush(dotColor))
             g.FillEllipse(b, 10f, (Height - 7f) / 2f, 7f, 7f);
@@ -1497,7 +1492,7 @@ internal sealed class SidebarMuteButton : Control
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         SetStyle(ControlStyles.StandardDoubleClick, false);
-        Size = new Size(164, 34);
+        Size = new Size(164, 32);
     }
 
     public void UpdateState(bool connected, bool muted, AppLanguage language)

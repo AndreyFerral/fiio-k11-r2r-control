@@ -640,12 +640,13 @@ using (var form = new K11Control.UI.SettingsForm(
     // Verify new left sidebar hierarchy & rounded HotkeyCaptureBox wrapping
     var badge = (Control)typeof(K11Control.UI.SettingsForm).GetField("_connectionBadge", flags)!.GetValue(form)!;
     var muteBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_muteBtn", flags)!.GetValue(form)!;
+    var rebootBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_rebootBtn", flags)!.GetValue(form)!;
     var navList = (System.Collections.IList)typeof(K11Control.UI.SettingsForm).GetField("_navButtons", flags)!.GetValue(form)!;
     var firstNav = (Control)navList[0]!;
     var hkBox = (K11Control.UI.HotkeyCaptureBox)typeof(K11Control.UI.SettingsForm).GetField("_hkToggleOut", flags)!.GetValue(form)!;
 
-    Assert(badge.Bottom < firstNav.Top && muteBtn.Top > balanceCard.Bottom && !muteBtn.Enabled == false,
-        $"Sidebar hierarchy places passive status above nav ({badge.Bottom} < {firstNav.Top}) and Mute button in bottom action stack ({muteBtn.Top} > {balanceCard.Bottom})");
+    Assert(badge.Bottom < firstNav.Top && muteBtn.Top > balanceCard.Bottom && muteBtn.Height == rebootBtn.Height,
+        $"Sidebar hierarchy places passive status above nav ({badge.Bottom} < {firstNav.Top}) and equal-height bottom buttons ({muteBtn.Height} == {rebootBtn.Height})");
 
     typeof(Control).GetMethod("OnClick", flags)!.Invoke(muteBtn, [EventArgs.Empty]);
     Assert(muteCalls == 1, $"Clicking standalone sidebar Mute button invokes toggle callback (calls={muteCalls})");

@@ -351,7 +351,7 @@ public sealed class SettingsForm : Form
         // Bottom sidebar stack: clickable actions only (balance fix, mute toggle, reboot DAC)
         _balanceCard = new SidebarBalanceButton
         {
-            Location = new Point(11, 362),
+            Location = new Point(11, 364),
             Size = new Size(164, 50),
             Visible = false
         };
@@ -366,8 +366,8 @@ public sealed class SettingsForm : Form
 
         _muteBtn = new SidebarMuteButton
         {
-            Location = new Point(11, 418),
-            Size = new Size(164, 34)
+            Location = new Point(11, 420),
+            Size = new Size(164, 32)
         };
         _muteBtn.Click += (_, _) => _onToggleMute();
 
@@ -377,8 +377,8 @@ public sealed class SettingsForm : Form
             ShowResetIcon = true,
             CornerRadius = 8f,
             Font = Theme.FontSmall,
-            Location = new Point(11, 460),
-            Size = new Size(164, 30)
+            Location = new Point(11, 458),
+            Size = new Size(164, 32)
         };
         _rebootBtn.Click += (_, _) => _onRebootDac();
 
