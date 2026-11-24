@@ -65,7 +65,7 @@ Windows system tray control app and patched `M79` firmware for the **FiiO K11 R2
 ### 1. Prepare Files (Windows 10 / 11)
 1. Download **`FiiO-K11-R2R-Control-v*-win-x64.zip`** from **Releases**:
    - **`k11R2R_m79_full.hex`** *(recommended)* — full USB control for `K11Control.exe` + `LO` disabled.
-   - **`k11R2R_m79_no-lo.hex`** — firmware-only patch (disables `LO` + USB stability fix, without tray control).
+   - **`k11R2R_m79_no-lo.hex`** — minimal firmware-only patch (only removes fixed max-volume `LO`, without USB control or extra hooks).
    - **`K11Control.exe`** — standalone tray app (self-contained, no `.NET Runtime` needed).
 2. Download the [official FiiO K11 R2R M79 package](https://forum.fiio.com/note/showNoteId.html?id=202507021516543188544) to get **`GD32_MCU_HID_IAP_Programmer.exe`** and the stock **`k11R2R_app1_m79.hex`** (kept for rollback).
 
