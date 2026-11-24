@@ -315,7 +315,7 @@ public static class DacCommandProtocol
         ReadOnlySpan<byte> packet,
         float savedCh0Db,
         float savedCh1Db,
-        int interWriteMs = 3)
+        int interWriteMs = 4)
     {
         if (packet.Length is < 2 or > MaxPacketBytes)
             throw new ArgumentOutOfRangeException(nameof(packet), $"Packet length must be 2..{MaxPacketBytes}.");
@@ -513,6 +513,16 @@ public sealed class DacCommandClient : IDisposable
             (ch0, ch1) => DacCommandProtocol.EncodeUac2Transfer(packet, ch0, ch1),
             out error);
 
+    private bool TrySendPacketWithRetry(byte[] packet, out string? error)
+    {
+        if (TrySendPacketSync(packet, out error))
+            return true;
+        if (_disposed)
+            return false;
+        Thread.Sleep(100);
+        return TrySendPacketSync(packet, out error);
+    }
+
     private void RunWorker()
     {
         foreach (QueuedJob job in _queue.GetConsumingEnumerable())
@@ -521,7 +531,7 @@ public sealed class DacCommandClient : IDisposable
             {
                 if (job.DirectPacket is byte[] directPacket)
                 {
-                    bool ok = TrySendPacketSync(directPacket, out string? err);
+                    bool ok = TrySendPacketWithRetry(directPacket, out string? err);
                     job.Callback?.Invoke(ok, err);
                     continue;
                 }
@@ -533,7 +543,7 @@ public sealed class DacCommandClient : IDisposable
                 string? lastErr = null;
                 if (job.Scope.HasFlag(SyncScope.OutputMode))
                 {
-                    allOk &= TrySendPacketSync(
+                    allOk &= TrySendPacketWithRetry(
                         DacCommandProtocol.BuildSetOutputModePacket(job.Snapshot.PreferredOutput),
                         out string? e1);
                     lastErr ??= e1;
@@ -544,7 +554,7 @@ public sealed class DacCommandClient : IDisposable
 
                 if (job.Scope.HasFlag(SyncScope.Rgb))
                 {
-                    allOk &= TrySendPacketSync(
+                    allOk &= TrySendPacketWithRetry(
                         DacCommandProtocol.BuildSetRgbPacket(job.Snapshot.Rgb),
                         out string? e2);
                     lastErr ??= e2;
@@ -557,7 +567,7 @@ public sealed class DacCommandClient : IDisposable
                     IReadOnlyList<byte[]> lcdPackets = DacCommandProtocol.BuildEffectiveLcdPackets(job.Snapshot.CustomLcd);
                     for (int i = 0; i < lcdPackets.Count; i++)
                     {
-                        allOk &= TrySendPacketSync(lcdPackets[i], out string? e3);
+                        allOk &= TrySendPacketWithRetry(lcdPackets[i], out string? e3);
                         lastErr ??= e3;
                         if (i + 1 < lcdPackets.Count)
                             Thread.Sleep(25);

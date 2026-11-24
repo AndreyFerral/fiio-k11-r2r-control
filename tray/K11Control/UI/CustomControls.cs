@@ -184,13 +184,13 @@ internal sealed class ModernButton : Control
         }
         else
         {
-            var leftRect = new Rectangle(12, 0, Math.Max(20, Width - 62), Height);
-            TextRenderer.DrawText(g, Text, Font, leftRect, fg,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-
             Size badgeSize = TextRenderer.MeasureText(BadgeText, Theme.FontSmall);
             int bw = badgeSize.Width + 10;
             int bh = 20;
+            var leftRect = new Rectangle(12, 0, Math.Max(20, Width - bw - 26), Height);
+            TextRenderer.DrawText(g, Text, Font, leftRect, fg,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+
             var badgeRect = new RectangleF(Width - bw - 10, (Height - bh) / 2f, bw, bh);
             using var badgePath = Theme.CreateRoundedPath(badgeRect, 5f);
             using var badgeBg = new SolidBrush(Color.FromArgb(45, 255, 255, 255));

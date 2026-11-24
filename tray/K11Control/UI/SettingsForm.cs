@@ -736,6 +736,9 @@ public sealed class SettingsForm : Form
         _hkToggleOut = new HotkeyCaptureBox();
         _hkPre = new HotkeyCaptureBox();
         _hkPo = new HotkeyCaptureBox();
+        _hkToggleOut.BindingChanged += (_, _) => RefreshOutputButtonBadges();
+        _hkPre.BindingChanged += (_, _) => RefreshOutputButtonBadges();
+        _hkPo.BindingChanged += (_, _) => RefreshOutputButtonBadges();
         _hkLcd = new HotkeyCaptureBox();
         _hkRgb = new HotkeyCaptureBox();
         _hkMute = new HotkeyCaptureBox();
@@ -1642,9 +1645,15 @@ public sealed class SettingsForm : Form
 
     private void RefreshOutputButtonBadges()
     {
-        _btnToggleOut.BadgeText = _config.Hotkeys.ToggleOutput.IsConfigured ? _config.Hotkeys.ToggleOutput.ToString() : null;
-        _btnPreOut.BadgeText = _config.Hotkeys.SwitchToPre.IsConfigured ? _config.Hotkeys.SwitchToPre.ToString() : null;
-        _btnPoOut.BadgeText = _config.Hotkeys.SwitchToPo.IsConfigured ? _config.Hotkeys.SwitchToPo.ToString() : null;
+        if (_btnToggleOut is null || _hkToggleOut is null)
+            return;
+
+        HotkeyBinding toggleOut = _hkToggleOut.Binding;
+        HotkeyBinding switchPre = _hkPre.Binding;
+        HotkeyBinding switchPo = _hkPo.Binding;
+        _btnToggleOut.BadgeText = toggleOut.IsConfigured ? toggleOut.ToString() : null;
+        _btnPreOut.BadgeText = switchPre.IsConfigured ? switchPre.ToString() : null;
+        _btnPoOut.BadgeText = switchPo.IsConfigured ? switchPo.ToString() : null;
         _btnToggleOut.Invalidate();
         _btnPreOut.Invalidate();
         _btnPoOut.Invalidate();

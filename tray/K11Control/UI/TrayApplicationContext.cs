@@ -4,6 +4,7 @@ using K11Control.Config;
 using K11Control.Hotkeys;
 using K11Control.Protocol;
 using K11Control.Usb;
+using Microsoft.Win32;
 
 namespace K11Control.UI;
 
@@ -15,6 +16,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly CoreAudioVolumeService _audio = new();
     private readonly DacCommandClient _dac;
     private readonly K11HidMonitor _hid = new();
+    private readonly SynchronizationContext? _uiSync;
     private readonly System.Windows.Forms.Timer _pollTimer;
 
     private readonly ToolStripMenuItem _statusItem;
@@ -44,6 +46,10 @@ public sealed class TrayApplicationContext : ApplicationContext
     private TrayConfig _config;
     private SettingsForm? _settingsForm;
     private bool _dacConnected;
+    private string? _lastAudioEndpointId;
+    private bool _pendingConnectSync;
+    private int _connectSyncRetriesLeft;
+    private DateTime _syncBlockUntilUtc = DateTime.MinValue;
     private bool _audioMuted;
     private GainMode _previewGain = GainMode.Mid;
     private OutputMode _previewOutput;
@@ -55,6 +61,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _config = TrayConfig.Load();
         _config.CustomLcd.EnsureSticksPresetsInitialized(_config.Language);
         _previewOutput = _config.PreferredOutput == OutputMode.PO ? OutputMode.PO : OutputMode.PRE;
+        _uiSync = SynchronizationContext.Current;
         _dac = new DacCommandClient(_audio);
         _hotkeys = new GlobalHotkeyManager();
         _hotkeys.HotkeyPressed += OnHotkeyPressed;
@@ -141,9 +148,27 @@ public sealed class TrayApplicationContext : ApplicationContext
         ApplyHotkeys();
         RefreshDeviceState();
 
-        _pollTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+
+        _pollTimer = new System.Windows.Forms.Timer { Interval = 1000 };
         _pollTimer.Tick += (_, _) => RefreshDeviceState();
         _pollTimer.Start();
+    }
+
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode != PowerModes.Resume)
+            return;
+
+        PostUi(() =>
+        {
+            _syncBlockUntilUtc = DateTime.UtcNow.AddMilliseconds(1500);
+            if (ComputeConnectSyncScope(_config) != SyncScope.None)
+            {
+                _pendingConnectSync = true;
+                _connectSyncRetriesLeft = 3;
+            }
+        });
     }
 
     private void ApplyHotkeys()
@@ -156,21 +181,51 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void RefreshDeviceState()
     {
         var endpoint = _audio.TryGetEndpointInfo();
-        bool connectedNow = _hid.EnumerateCollections().Count > 0 || endpoint is not null;
+        bool hidPresent = _hid.EnumerateCollections().Count > 0;
+        bool connectedNow = hidPresent || endpoint is not null;
         bool mutedNow = endpoint?.Muted ?? false;
         bool reconnected = connectedNow && !_dacConnected;
+        bool endpointBecameReady = endpoint is not null
+            && !string.Equals(_lastAudioEndpointId, endpoint.DeviceId, StringComparison.OrdinalIgnoreCase);
+
         _dacConnected = connectedNow;
+        _lastAudioEndpointId = endpoint?.DeviceId;
+
         if (_audioMuted != mutedNow)
         {
             _audioMuted = mutedNow;
             _notifyIcon.Icon = _audioMuted ? _trayIconMuted : _trayIcon;
         }
 
-        if (reconnected)
+        if (reconnected || endpointBecameReady)
+        {
+            if (ComputeConnectSyncScope(_config) != SyncScope.None)
+            {
+                _pendingConnectSync = true;
+                _connectSyncRetriesLeft = 3;
+            }
+        }
+        else if (!connectedNow)
+        {
+            _pendingConnectSync = false;
+            _connectSyncRetriesLeft = 0;
+        }
+
+        if (_pendingConnectSync && endpoint is not null && DateTime.UtcNow >= _syncBlockUntilUtc)
         {
             var startupScope = ComputeConnectSyncScope(_config);
+            _pendingConnectSync = false;
             if (startupScope != SyncScope.None)
-                SyncRamStateToDac("USB Connect", startupScope);
+            {
+                SyncRamStateToDac("USB Connect", startupScope, ok =>
+                {
+                    if (!ok && _connectSyncRetriesLeft > 0)
+                    {
+                        _connectSyncRetriesLeft--;
+                        _pendingConnectSync = true;
+                    }
+                });
+            }
         }
 
         UpdateUiIndicators();
@@ -379,6 +434,20 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             if (!ok && !string.IsNullOrWhiteSpace(err))
                 System.Diagnostics.Debug.WriteLine($"[K11Control] Reboot: {err}");
+
+            if (ok)
+            {
+                PostUi(() =>
+                {
+                    // Re-sync active RAM state once MCU reboots, even if USB bridge did not drop long enough to trip poll timer.
+                    _syncBlockUntilUtc = DateTime.UtcNow.AddMilliseconds(1800);
+                    if (ComputeConnectSyncScope(_config) != SyncScope.None)
+                    {
+                        _pendingConnectSync = true;
+                        _connectSyncRetriesLeft = 3;
+                    }
+                });
+            }
         });
     }
 
@@ -403,7 +472,7 @@ public sealed class TrayApplicationContext : ApplicationContext
                 _config.Save();
                 ApplyHotkeys();
 
-                SyncScope scope = ComputeSettingsApplyScope(prev, updated);
+                SyncScope scope = ComputeExplicitSettingsApplyScope(prev, updated);
                 if (scope != SyncScope.None)
                     SyncRamStateToDac("Settings Applied", scope);
                 UpdateUiIndicators();
@@ -478,6 +547,17 @@ public sealed class TrayApplicationContext : ApplicationContext
         return scope;
     }
 
+    public static SyncScope ComputeExplicitSettingsApplyScope(TrayConfig prev, TrayConfig next)
+    {
+        // Explicit Apply / Save re-pushes active custom RGB and LCD into DAC RAM even if config fields stayed identical.
+        var scope = ComputeSettingsApplyScope(prev, next);
+        if (next.Rgb.State != RgbStateMode.On)
+            scope |= SyncScope.Rgb;
+        if (next.CustomLcd.RequiresRamSync)
+            scope |= SyncScope.CustomLcd;
+        return scope;
+    }
+
     private static bool AreAnimationFramesEqual(CustomLcdConfig a, CustomLcdConfig b)
     {
         int count = Math.Clamp(Math.Max(a.FrameCount, b.FrameCount), 1, SticksPreset.MaxFrames);
@@ -489,21 +569,35 @@ public sealed class TrayApplicationContext : ApplicationContext
         return true;
     }
 
-    private void SyncRamStateToDac(string reason, SyncScope scope = SyncScope.All)
+    private void SyncRamStateToDac(string reason, SyncScope scope = SyncScope.All, Action<bool>? onCompleted = null)
     {
         // All state stays in PC JSON + DAC RAM (zero MCU Flash writes).
         if (!_dacConnected)
+        {
+            onCompleted?.Invoke(false);
             return;
+        }
 
         _dac.EnqueueSync(_config, scope, reason, (ok, err) =>
         {
             if (!ok && !string.IsNullOrWhiteSpace(err))
                 System.Diagnostics.Debug.WriteLine($"[K11Control] {reason}: {err}");
+            if (onCompleted is not null)
+                PostUi(() => onCompleted(ok));
         });
+    }
+
+    private void PostUi(Action action)
+    {
+        if (_uiSync is not null)
+            _uiSync.Post(_ => action(), null);
+        else
+            action();
     }
 
     protected override void ExitThreadCore()
     {
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _pollTimer.Stop();
         _pollTimer.Dispose();
         _settingsForm?.Close();

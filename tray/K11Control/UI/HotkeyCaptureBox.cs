@@ -6,6 +6,8 @@ public sealed class HotkeyCaptureBox : TextBox
 {
     private HotkeyBinding _binding = new();
 
+    public event EventHandler? BindingChanged;
+
     public HotkeyCaptureBox()
     {
         ReadOnly = true;
@@ -23,9 +25,12 @@ public sealed class HotkeyCaptureBox : TextBox
         get => new() { Modifiers = _binding.Modifiers, Key = _binding.Key };
         set
         {
+            bool changed = _binding.Modifiers != value.Modifiers || _binding.Key != value.Key;
             _binding = new HotkeyBinding { Modifiers = value.Modifiers, Key = value.Key };
             Text = _binding.ToString();
             ForeColor = _binding.IsConfigured ? Theme.Accent : Theme.TextMuted;
+            if (changed)
+                BindingChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 

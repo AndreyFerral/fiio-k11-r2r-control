@@ -145,13 +145,30 @@ public sealed class CoreAudioVolumeService
 
                     IReadOnlyList<VolumeStep> steps = buildSteps(ch0, ch1);
                     Guid ctx = Guid.Empty;
-                    foreach (VolumeStep step in steps)
+                    bool completed = false;
+                    try
                     {
-                        Marshal.ThrowExceptionForHR(vol.SetChannelVolumeLevel(step.Channel, step.LevelDb, ref ctx));
-                        if (step.DelayAfterMs > 0)
-                            Thread.Sleep(step.DelayAfterMs);
+                        foreach (VolumeStep step in steps)
+                        {
+                            Marshal.ThrowExceptionForHR(vol.SetChannelVolumeLevel(step.Channel, step.LevelDb, ref ctx));
+                            if (step.DelayAfterMs > 0)
+                                Thread.Sleep(step.DelayAfterMs);
+                        }
+                        completed = true;
+                        return true;
                     }
-                    return true;
+                    finally
+                    {
+                        if (!completed)
+                        {
+                            try
+                            {
+                                _ = vol.SetChannelVolumeLevel(0, ch0, ref ctx);
+                                _ = vol.SetChannelVolumeLevel(1, ch1, ref ctx);
+                            }
+                            catch { }
+                        }
+                    }
                 });
 
                 if (found)

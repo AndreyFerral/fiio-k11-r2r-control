@@ -489,4 +489,27 @@ finally
 Assert(!defaultCfg.Hotkeys.CycleGain.IsConfigured && !defaultCfg.Hotkeys.ToggleFilter.IsConfigured,
     "New GainCycle and FilterToggle hotkeys default to unbound to avoid shortcut conflicts");
 
+var sameCustomRgb = new TrayConfig
+{
+    Rgb = new RgbConfig { State = RgbStateMode.Custom, Effect = RgbEffectMode.Solid, Brightness = 61, ZoneHexColors = ["#F59E0B", "#F59E0B", "#F59E0B"] },
+    CustomLcd = new CustomLcdConfig { Mode = CustomLcdMode.Text, Text = "R2R" }
+};
+Assert(TrayApplicationContext.ComputeSettingsApplyScope(sameCustomRgb, sameCustomRgb) == SyncScope.None
+    && TrayApplicationContext.ComputeExplicitSettingsApplyScope(sameCustomRgb, sameCustomRgb) == (SyncScope.Rgb | SyncScope.CustomLcd)
+    && !TrayApplicationContext.ComputeExplicitSettingsApplyScope(sameCustomRgb, sameCustomRgb).HasFlag(SyncScope.OutputMode),
+    "ComputeExplicitSettingsApplyScope re-syncs unchanged active RGB/LCD RAM state without altering output mode");
+
+Assert(TrayApplicationContext.ComputeExplicitSettingsApplyScope(new TrayConfig(), new TrayConfig()) == SyncScope.None,
+    "ComputeExplicitSettingsApplyScope stays None when RGB=On and LCD=Normal");
+
+int hkChangedCount = 0;
+using (var hkBox = new K11Control.UI.HotkeyCaptureBox())
+{
+    hkBox.BindingChanged += (_, _) => hkChangedCount++;
+    hkBox.Binding = new HotkeyBinding { Modifiers = HotkeyModifiers.Control | HotkeyModifiers.Shift, Key = Keys.F10 };
+    hkBox.Binding = new HotkeyBinding { Modifiers = HotkeyModifiers.Control | HotkeyModifiers.Shift, Key = Keys.F10 };
+    hkBox.Binding = new HotkeyBinding();
+}
+Assert(hkChangedCount == 2, $"HotkeyCaptureBox fires BindingChanged on real edits only (got {hkChangedCount})");
+
 return failures == 0 ? 0 : 1;

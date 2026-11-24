@@ -886,6 +886,8 @@ internal sealed class RgbStudioControl : UserControl
 
     public void WriteToConfig(RgbConfig cfg)
     {
+        if (_hexInput.Focused)
+            TryApplyHexText();
         cfg.State = _state;
         cfg.Effect = _effect;
         cfg.Brightness = _brightness;
