@@ -165,6 +165,7 @@ public sealed class SettingsForm : Form
         ClientSize = new Size(748, 580);
 
         BuildUi();
+        WireBlurTextInputs(this);
         LoadValues(initialPreviewGain, initialPreviewOutput);
         ApplyLanguage(_config.Language);
         SelectPage(0);
@@ -386,8 +387,26 @@ public sealed class SettingsForm : Form
         SetDeviceStatus(_dacConnected, _audioMuted);
     }
 
+    private void WireBlurTextInputs(Control root)
+    {
+        if (root is not TextBox)
+        {
+            root.MouseDown += (_, _) =>
+            {
+                if (ActiveControl is TextBox)
+                    ActiveControl = null;
+            };
+        }
+
+        foreach (Control child in root.Controls)
+            WireBlurTextInputs(child);
+    }
+
     private void SelectPage(int index)
     {
+        if (ActiveControl is TextBox)
+            ActiveControl = null;
+
         _activePage = index;
         for (int i = 0; i < _pages.Length; i++)
         {

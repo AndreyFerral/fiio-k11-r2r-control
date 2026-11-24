@@ -18,6 +18,8 @@ public sealed class HotkeyCaptureBox : TextBox
         Font = Theme.FontMono;
         TextAlign = HorizontalAlignment.Center;
         Text = "(None)";
+        GotFocus += (_, _) => BackColor = Theme.BgElevated;
+        LostFocus += (_, _) => BackColor = Theme.BgInput;
     }
 
     public HotkeyBinding Binding
@@ -36,9 +38,18 @@ public sealed class HotkeyCaptureBox : TextBox
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
-        Keys keyCode = keyData & Keys.KeyCode;
-        if (keyCode is Keys.Tab or Keys.Return)
+        if (!Visible || !Focused)
             return base.ProcessCmdKey(ref msg, keyData);
+
+        Keys keyCode = keyData & Keys.KeyCode;
+        if (keyCode == Keys.Tab)
+            return base.ProcessCmdKey(ref msg, keyData);
+        if (keyCode == Keys.Return)
+        {
+            if (FindForm() is { } form)
+                form.ActiveControl = null;
+            return true;
+        }
 
         if (keyCode is Keys.Escape or Keys.Back or Keys.Delete)
         {

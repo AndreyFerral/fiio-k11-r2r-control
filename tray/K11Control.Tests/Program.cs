@@ -512,4 +512,19 @@ using (var hkBox = new K11Control.UI.HotkeyCaptureBox())
 }
 Assert(hkChangedCount == 2, $"HotkeyCaptureBox fires BindingChanged on real edits only (got {hkChangedCount})");
 
+using (var form = new K11Control.UI.SettingsForm(
+    new TrayConfig(), false, false, _ => { }, _ => { }, () => { }, _ => { }, () => { }))
+{
+    form.CreateControl();
+    var selectPage = typeof(K11Control.UI.SettingsForm).GetMethod("SelectPage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+    var hkField = typeof(K11Control.UI.SettingsForm).GetField("_hkToggleOut", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+    selectPage.Invoke(form, [3]);
+    var box = (K11Control.UI.HotkeyCaptureBox)hkField.GetValue(form)!;
+    form.ActiveControl = box;
+    Assert(form.ActiveControl == box, "SettingsForm focuses HotkeyCaptureBox on Hotkeys page");
+    selectPage.Invoke(form, [0]);
+    Assert(form.ActiveControl is null && !box.Visible,
+        "Switching away from Hotkeys page clears focus from HotkeyCaptureBox cleanly");
+}
+
 return failures == 0 ? 0 : 1;
