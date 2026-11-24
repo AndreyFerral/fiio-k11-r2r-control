@@ -527,4 +527,99 @@ using (var form = new K11Control.UI.SettingsForm(
         "Switching away from Hotkeys page clears focus from HotkeyCaptureBox cleanly");
 }
 
+// Channel balance detection & clamping pure helpers
+Assert(!CoreAudioVolumeService.IsChannelImbalanced(0f, 0f),
+    "IsChannelImbalanced returns false when both channels are 0 dB");
+Assert(!CoreAudioVolumeService.IsChannelImbalanced(-0.2f, 0f),
+    "IsChannelImbalanced ignores minor sub-0.5 dB rounding noise");
+Assert(CoreAudioVolumeService.IsChannelImbalanced(-1f, 0f)
+    && CoreAudioVolumeService.IsChannelImbalanced(0f, -0.5f),
+    "IsChannelImbalanced detects L/R channel skew >= 0.5 dB");
+Assert(!CoreAudioVolumeService.IsChannelImbalanced(float.NaN, 0f),
+    "IsChannelImbalanced safely rejects non-finite channel values");
+Assert(CoreAudioVolumeService.ComputeTargetBalancedDb(-1f, 0f, -63f, 0f) == 0f
+    && CoreAudioVolumeService.ComputeTargetBalancedDb(-12f, -15f, -63f, 0f) == -12f
+    && CoreAudioVolumeService.ComputeTargetBalancedDb(2f, -1f, -63f, 0f) == 0f,
+    "ComputeTargetBalancedDb aligns to highest channel within device dB bounds");
+
+// Conditional L/R balance alert & Apply button feedback on SettingsForm
+K11AudioEndpointInfo balancedEp = new("k11-id", "FIIO K11 R2R", "FIIO", 0f, 1f, 0f, 0f, false, -63f, 0f, 0.5f);
+K11AudioEndpointInfo skewedEp = new("k11-id", "FIIO K11 R2R", "FIIO", -0.5f, 0.94f, -1f, 0f, false, -63f, 0f, 0.5f);
+K11AudioEndpointInfo nextFixResult = balancedEp;
+bool nextApplyResult = true;
+int fixCalls = 0;
+
+using (var form = new K11Control.UI.SettingsForm(
+    new TrayConfig { Language = AppLanguage.Ru },
+    dacConnected: false,
+    audioMuted: false,
+    _ => { },
+    _ => { },
+    () => { },
+    _ => { },
+    () => { },
+    onApplyWithFeedback: (_, cb) => cb(nextApplyResult),
+    onFixBalance: () => { fixCalls++; return nextFixResult; },
+    initialAudioEndpoint: skewedEp))
+{
+    form.CreateControl();
+    var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+    var balanceVisibleField = typeof(K11Control.UI.SettingsForm).GetField("_balanceBannerVisible", flags)!;
+    bool IsBannerShown() => (bool)balanceVisibleField.GetValue(form)!;
+    var balanceLbl = (Control)typeof(K11Control.UI.SettingsForm).GetField("_balanceLbl", flags)!.GetValue(form)!;
+    var balanceFixBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_balanceFixBtn", flags)!.GetValue(form)!;
+    var applyBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_applyBtn", flags)!.GetValue(form)!;
+    var applyCurrentEdits = typeof(K11Control.UI.SettingsForm).GetMethod("ApplyCurrentEdits", flags)!;
+    var applyTimer = (System.Windows.Forms.Timer)typeof(K11Control.UI.SettingsForm).GetField("_applyFeedbackTimer", flags)!.GetValue(form)!;
+
+    Assert(!IsBannerShown(),
+        "Channel balance card stays hidden when K11 R2R is disconnected even with stale skewed levels");
+
+    form.SetDeviceStatus(true, false, balancedEp);
+    Assert(!IsBannerShown(),
+        "Channel balance card stays hidden when K11 R2R is connected and L == R");
+
+    form.SetDeviceStatus(true, false, skewedEp);
+    Assert(IsBannerShown() && balanceLbl.Text.Contains("Л -1 / П 0") && balanceFixBtn.Text == "Выровнять",
+        $"Channel balance card appears when connected and L/R skewed (got label '{balanceLbl.Text}')");
+
+    // Apply offline vs error vs success feedback without resizing button
+    form.SetDeviceStatus(false, false, null);
+    Assert(!IsBannerShown(),
+        "Channel balance card hides cleanly when K11 R2R disconnects");
+
+    nextApplyResult = false;
+    applyCurrentEdits.Invoke(form, [true]);
+    Assert(applyBtn.Text == "Нет связи",
+        $"Apply button shows Offline text when DAC disconnected and sync fails (got '{applyBtn.Text}')");
+
+    form.SetDeviceStatus(true, false, skewedEp);
+    nextApplyResult = false;
+    applyCurrentEdits.Invoke(form, [true]);
+    Assert(applyBtn.Text == "Ошибка",
+        $"Apply button shows Error text when connected DAC sync fails (got '{applyBtn.Text}')");
+
+    nextApplyResult = true;
+    applyCurrentEdits.Invoke(form, [true]);
+    var borderProp = applyBtn.GetType().GetProperty("BorderColorOverride")!;
+    Assert(applyBtn.Text == "Применено ✓" && borderProp.GetValue(applyBtn) is not null,
+        $"Apply button shows Applied feedback with emerald border highlight (got '{applyBtn.Text}')");
+
+    // Timer revert restores default Apply label & border
+    typeof(System.Windows.Forms.Timer).GetMethod("OnTick", flags)!.Invoke(applyTimer, [EventArgs.Empty]);
+    Assert(applyBtn.Text == "Применить" && borderProp.GetValue(applyBtn) is null,
+        $"Apply button resets cleanly to default label after feedback timer tick (got '{applyBtn.Text}')");
+
+    // 1-click balance fix clears banner immediately
+    typeof(Control).GetMethod("OnClick", flags)!.Invoke(balanceFixBtn, [EventArgs.Empty]);
+    Assert(fixCalls == 1 && !IsBannerShown(),
+        $"Clicking Balance fix button invokes handler and hides warning card (calls={fixCalls}, visible={IsBannerShown()})");
+
+    // Check EN labels when switched to English while skewed
+    form.ApplyLanguage(AppLanguage.En);
+    form.SetDeviceStatus(true, false, skewedEp);
+    Assert(IsBannerShown() && balanceLbl.Text == "L/R imbalance: L -1 / R 0 dB" && balanceFixBtn.Text == "Balance",
+        $"English localization updates balance alert label and compact button (got '{balanceLbl.Text}' / '{balanceFixBtn.Text}')");
+}
+
 return failures == 0 ? 0 : 1;

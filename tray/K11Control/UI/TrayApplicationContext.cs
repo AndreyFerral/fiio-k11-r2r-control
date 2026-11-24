@@ -47,6 +47,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private SettingsForm? _settingsForm;
     private bool _dacConnected;
     private string? _lastAudioEndpointId;
+    private K11AudioEndpointInfo? _lastAudioEndpoint;
     private bool _pendingConnectSync;
     private int _connectSyncRetriesLeft;
     private DateTime _syncBlockUntilUtc = DateTime.MinValue;
@@ -190,6 +191,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _dacConnected = connectedNow;
         _lastAudioEndpointId = endpoint?.DeviceId;
+        _lastAudioEndpoint = endpoint;
 
         if (_audioMuted != mutedNow)
         {
@@ -290,7 +292,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.Text = AppStrings.TrayTooltip(lang, _dacConnected, _audioMuted);
 
         if (_settingsForm is { IsDisposed: false })
-            _settingsForm.SetDeviceStatus(_dacConnected, _audioMuted);
+            _settingsForm.SetDeviceStatus(_dacConnected, _audioMuted, _lastAudioEndpoint);
     }
 
     private static string? FormatShortcut(HotkeyBinding binding) =>
@@ -465,18 +467,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             _config,
             _dacConnected,
             _audioMuted,
-            updated =>
-            {
-                TrayConfig prev = _config;
-                _config = updated;
-                _config.Save();
-                ApplyHotkeys();
-
-                SyncScope scope = ComputeExplicitSettingsApplyScope(prev, updated);
-                if (scope != SyncScope.None)
-                    SyncRamStateToDac("Settings Applied", scope);
-                UpdateUiIndicators();
-            },
+            updated => ApplySettingsFromUi(updated),
             lang =>
             {
                 _config.Language = lang;
@@ -495,10 +486,33 @@ public sealed class TrayApplicationContext : ApplicationContext
                 _config.CustomLcd.SticksPresets = presets.Select(p => p.Clone()).ToList();
                 _config.CustomLcd.ActiveSticksPresetIndex = Math.Clamp(activeIdx, 0, Math.Max(0, _config.CustomLcd.SticksPresets.Count - 1));
                 _config.Save();
-            });
+            },
+            onApplyWithFeedback: ApplySettingsFromUi,
+            onFixBalance: () =>
+            {
+                _audio.TryBalanceChannels(out var updated, out _);
+                RefreshDeviceState();
+                return updated ?? _lastAudioEndpoint;
+            },
+            initialAudioEndpoint: _lastAudioEndpoint);
         _settingsForm.FormClosed += (_, _) => _settingsForm = null;
         _settingsForm.Show();
         _settingsForm.Activate();
+    }
+
+    private void ApplySettingsFromUi(TrayConfig updated, Action<bool>? onCompleted = null)
+    {
+        TrayConfig prev = _config;
+        _config = updated;
+        _config.Save();
+        ApplyHotkeys();
+
+        SyncScope scope = ComputeExplicitSettingsApplyScope(prev, updated);
+        if (scope != SyncScope.None)
+            SyncRamStateToDac("Settings Applied", scope, onCompleted);
+        else
+            onCompleted?.Invoke(true);
+        UpdateUiIndicators();
     }
 
     public static SyncScope ComputeConnectSyncScope(TrayConfig cfg)

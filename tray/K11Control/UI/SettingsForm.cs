@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using K11Control.Audio;
 using K11Control.Config;
 using K11Control.Protocol;
 using K11Control.Stage0;
@@ -9,8 +10,17 @@ namespace K11Control.UI;
 [SupportedOSPlatform("windows")]
 public sealed class SettingsForm : Form
 {
+    private enum ApplyFeedbackState
+    {
+        Normal,
+        Success,
+        Offline,
+        Error
+    }
+
     private readonly TrayConfig _config;
-    private readonly Action<TrayConfig> _onApply;
+    private readonly Action<TrayConfig, Action<bool>> _onApplyAsync;
+    private readonly Func<K11AudioEndpointInfo?> _onFixBalance;
     private readonly Action<AppLanguage> _onLanguageChanged;
     private readonly Action _onRebootDac;
     private readonly Action<OutputAction> _onOutputAction;
@@ -31,6 +41,11 @@ public sealed class SettingsForm : Form
     private ModernButton _saveCloseBtn = null!;
     private bool _dacConnected;
     private bool _audioMuted;
+    private K11AudioEndpointInfo? _audioEndpoint;
+    private bool _balanceBannerVisible;
+    private readonly System.Windows.Forms.Timer _applyFeedbackTimer = new();
+    private ApplyFeedbackState _applyFeedbackState = ApplyFeedbackState.Normal;
+    private int _applyFeedbackSeq;
 
     // Output & Power page
     private Label _outTitle = null!;
@@ -50,6 +65,9 @@ public sealed class SettingsForm : Form
     private ModernToggleSwitch _enforceOutputSwitch = null!;
     private SegmentedToggle<OutputMode> _startupOutputToggle = null!;
     private ModernButton _rebootBtn = null!;
+    private RoundedCardPanel _balanceCard = null!;
+    private Label _balanceLbl = null!;
+    private ModernButton _balanceFixBtn = null!;
     private readonly ToolTip _toolTip = new();
 
     // LCD page (Normal / Text / Segments with saved presets & up to 4-frame animation)
@@ -131,12 +149,17 @@ public sealed class SettingsForm : Form
         Action<FilterAction>? onFilterAction = null,
         GainMode initialPreviewGain = GainMode.Mid,
         OutputMode? initialPreviewOutput = null,
-        Action<List<SticksPreset>, int>? onPresetsPersisted = null)
+        Action<List<SticksPreset>, int>? onPresetsPersisted = null,
+        Action<TrayConfig, Action<bool>>? onApplyWithFeedback = null,
+        Func<K11AudioEndpointInfo?>? onFixBalance = null,
+        K11AudioEndpointInfo? initialAudioEndpoint = null)
     {
         _config = CloneConfigSnapshot(currentConfig);
         _dacConnected = dacConnected;
         _audioMuted = audioMuted;
-        _onApply = onApply;
+        _audioEndpoint = dacConnected ? initialAudioEndpoint : null;
+        _onApplyAsync = onApplyWithFeedback ?? ((cfg, cb) => { onApply(cfg); cb(true); });
+        _onFixBalance = onFixBalance ?? (() => null);
         _onLanguageChanged = onLanguageChanged;
         _onRebootDac = onRebootDac;
         _onOutputAction = onOutputAction;
@@ -152,6 +175,13 @@ public sealed class SettingsForm : Form
             _saveFeedbackTimer.Stop();
             _savedBadgeActive = false;
             _btnSavePreset.Text = AppStrings.LcdSavePresetBtn(_config.Language);
+        };
+        _applyFeedbackTimer.Interval = 1600;
+        _applyFeedbackTimer.Tick += (_, _) =>
+        {
+            _applyFeedbackTimer.Stop();
+            _applyFeedbackState = ApplyFeedbackState.Normal;
+            UpdateApplyButtonAppearance();
         };
 
         Text = "FiiO K11 R2R Control";
@@ -185,6 +215,8 @@ public sealed class SettingsForm : Form
             _animTimer.Dispose();
             _saveFeedbackTimer.Stop();
             _saveFeedbackTimer.Dispose();
+            _applyFeedbackTimer.Stop();
+            _applyFeedbackTimer.Dispose();
             _presetMoreMenu?.Dispose();
             _presetMoreMenu = null;
             _toolTip.Dispose();
@@ -220,10 +252,42 @@ public sealed class SettingsForm : Form
 
     public void SetDeviceStatus(bool connected, bool muted)
     {
+        SetDeviceStatus(connected, muted, connected ? _audioEndpoint : null);
+    }
+
+    public void SetDeviceStatus(bool connected, bool muted, K11AudioEndpointInfo? audioEndpoint)
+    {
         _dacConnected = connected;
         _audioMuted = muted;
+        _audioEndpoint = connected ? audioEndpoint : null;
         _statusCard.UpdateState(connected, muted, _config.Language);
         _rebootBtn.Enabled = connected;
+        UpdateChannelBalanceBanner();
+    }
+
+    private void UpdateChannelBalanceBanner()
+    {
+        if (_balanceCard is null)
+            return;
+
+        bool show = _dacConnected
+            && _audioEndpoint is not null
+            && CoreAudioVolumeService.IsChannelImbalanced(_audioEndpoint.Ch0Db, _audioEndpoint.Ch1Db);
+
+        _balanceBannerVisible = show;
+        if (_balanceCard.Visible != show)
+            _balanceCard.Visible = show;
+        if (show && _audioEndpoint is not null)
+        {
+            string warnText = AppStrings.OutBalanceWarn(_config.Language, _audioEndpoint.Ch0Db, _audioEndpoint.Ch1Db);
+            string btnText = AppStrings.OutBalanceFixBtn(_config.Language);
+            if (!string.Equals(_balanceLbl.Text, warnText, StringComparison.Ordinal))
+                _balanceLbl.Text = warnText;
+            if (!string.Equals(_balanceFixBtn.Text, btnText, StringComparison.Ordinal))
+                _balanceFixBtn.Text = btnText;
+            if (!_balanceFixBtn.Enabled)
+                _balanceFixBtn.Enabled = true;
+        }
     }
 
     private void BuildUi()
@@ -351,13 +415,13 @@ public sealed class SettingsForm : Form
         var footerPanel = new Panel { Dock = DockStyle.Bottom, Height = 48, BackColor = Theme.BgWindow };
 
         _saveCloseBtn = new ModernButton { Width = 166, Height = 34, Location = new Point(380, 6), Variant = ButtonVariant.Primary };
-        _applyBtn = new ModernButton { Width = 104, Height = 34, Location = new Point(268, 6), Variant = ButtonVariant.Secondary };
+        _applyBtn = new ModernButton { Width = 114, Height = 34, Location = new Point(258, 6), Variant = ButtonVariant.Secondary };
         _cancelBtn = new ModernButton { Width = 92, Height = 34, Location = new Point(18, 6), Variant = ButtonVariant.Secondary };
 
-        _applyBtn.Click += (_, _) => ApplyCurrentEdits();
+        _applyBtn.Click += (_, _) => ApplyCurrentEdits(showFeedback: true);
         _saveCloseBtn.Click += (_, _) =>
         {
-            ApplyCurrentEdits();
+            ApplyCurrentEdits(showFeedback: false);
             Close();
         };
         _cancelBtn.Click += (_, _) => Close();
@@ -527,7 +591,42 @@ public sealed class SettingsForm : Form
         _enforceOutputSwitch.CheckedChanged += (_, _) => _startupOutputToggle.Enabled = _enforceOutputSwitch.Checked;
         bootCard.Controls.AddRange([_bootTitle, _autostartSwitch, _enforceOutputSwitch, _startupOutputToggle]);
 
-        page.Controls.AddRange([switchCard, modesCard, bootCard]);
+        // Card 4: Conditional L/R channel imbalance alert (visible only when K11 R2R audio endpoint is active and L != R)
+        _balanceCard = new RoundedCardPanel
+        {
+            Location = new Point(0, 434),
+            Size = new Size(526, 42),
+            CardColor = Color.FromArgb(34, 29, 24),
+            BorderColor = Color.FromArgb(145, Theme.AccentAmber),
+            Visible = false
+        };
+        _balanceLbl = new Label
+        {
+            Font = Theme.FontBodyBold,
+            ForeColor = Theme.AccentAmberHover,
+            Location = new Point(14, 6),
+            Size = new Size(382, 30),
+            TextAlign = ContentAlignment.MiddleLeft,
+            UseMnemonic = false
+        };
+        _balanceFixBtn = new ModernButton
+        {
+            Variant = ButtonVariant.Amber,
+            CornerRadius = 6f,
+            Location = new Point(402, 7),
+            Size = new Size(110, 28)
+        };
+        _balanceFixBtn.Click += (_, _) =>
+        {
+            _balanceFixBtn.Enabled = false;
+            var updated = _onFixBalance();
+            if (updated is not null)
+                _audioEndpoint = updated;
+            UpdateChannelBalanceBanner();
+        };
+        _balanceCard.Controls.AddRange([_balanceLbl, _balanceFixBtn]);
+
+        page.Controls.AddRange([switchCard, modesCard, bootCard, _balanceCard]);
         return page;
     }
 
@@ -955,7 +1054,7 @@ public sealed class SettingsForm : Form
         SetDeviceStatus(_dacConnected, _audioMuted);
 
         _cancelBtn.Text = AppStrings.BtnClose(lang);
-        _applyBtn.Text = AppStrings.BtnApply(lang);
+        UpdateApplyButtonAppearance();
         _saveCloseBtn.Text = AppStrings.BtnSaveClose(lang);
 
         // Output page
@@ -1656,10 +1755,50 @@ public sealed class SettingsForm : Form
         RefreshOutputButtonBadges();
     }
 
-    private void ApplyCurrentEdits()
+    private void ApplyCurrentEdits(bool showFeedback = true)
     {
         SaveValues();
-        _onApply(CloneConfigSnapshot(_config));
+        int seq = ++_applyFeedbackSeq;
+        _onApplyAsync(CloneConfigSnapshot(_config), ok =>
+        {
+            if (!showFeedback || IsDisposed || seq != _applyFeedbackSeq)
+                return;
+
+            _applyFeedbackState = ok
+                ? ApplyFeedbackState.Success
+                : (_dacConnected ? ApplyFeedbackState.Error : ApplyFeedbackState.Offline);
+            UpdateApplyButtonAppearance();
+            _applyFeedbackTimer.Stop();
+            _applyFeedbackTimer.Start();
+        });
+    }
+
+    private void UpdateApplyButtonAppearance()
+    {
+        AppLanguage lang = _config.Language;
+        switch (_applyFeedbackState)
+        {
+            case ApplyFeedbackState.Success:
+                _applyBtn.Text = AppStrings.BtnApplyDone(lang);
+                _applyBtn.BorderColorOverride = Theme.Success;
+                _applyBtn.ForeColorOverride = Color.FromArgb(134, 239, 172);
+                break;
+            case ApplyFeedbackState.Offline:
+                _applyBtn.Text = AppStrings.BtnApplyOffline(lang);
+                _applyBtn.BorderColorOverride = Theme.Danger;
+                _applyBtn.ForeColorOverride = Color.FromArgb(254, 202, 202);
+                break;
+            case ApplyFeedbackState.Error:
+                _applyBtn.Text = AppStrings.BtnApplyError(lang);
+                _applyBtn.BorderColorOverride = Theme.Danger;
+                _applyBtn.ForeColorOverride = Color.FromArgb(254, 202, 202);
+                break;
+            default:
+                _applyBtn.Text = AppStrings.BtnApply(lang);
+                _applyBtn.BorderColorOverride = null;
+                _applyBtn.ForeColorOverride = null;
+                break;
+        }
     }
 
     private void RefreshOutputButtonBadges()

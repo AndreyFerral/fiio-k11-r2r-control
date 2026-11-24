@@ -29,7 +29,23 @@ internal static class AppStrings
     public static string StatusAudioUnknown(AppLanguage l) => Tr(l, "Звук: нет данных", "Audio: Offline");
     public static string BtnClose(AppLanguage l) => Tr(l, "Закрыть", "Close");
     public static string BtnApply(AppLanguage l) => Tr(l, "Применить", "Apply");
+    public static string BtnApplyDone(AppLanguage l) => Tr(l, "Применено ✓", "Applied ✓");
+    public static string BtnApplyOffline(AppLanguage l) => Tr(l, "Нет связи", "Offline");
+    public static string BtnApplyError(AppLanguage l) => Tr(l, "Ошибка", "Error");
     public static string BtnSaveClose(AppLanguage l) => Tr(l, "Сохранить и закрыть", "Save & Close");
+
+    public static string OutBalanceWarn(AppLanguage l, float ch0Db, float ch1Db) =>
+        Tr(l,
+            $"Баланс сбит: Л {FormatDbShort(ch0Db)} / П {FormatDbShort(ch1Db)} дБ",
+            $"L/R imbalance: L {FormatDbShort(ch0Db)} / R {FormatDbShort(ch1Db)} dB");
+
+    public static string OutBalanceFixBtn(AppLanguage l) => Tr(l, "Выровнять", "Balance");
+
+    private static string FormatDbShort(float db)
+    {
+        float clean = MathF.Abs(db) < 0.05f ? 0f : MathF.Round(db, 1);
+        return clean.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     // Output Page (uniform naming across buttons, tray menu, and hotkeys)
     public static string OutCardTitle(AppLanguage l) => Tr(l, "Переключение выхода ЦАПа (LO отключён)", "DAC Output Switching (LO Disabled)");

@@ -72,6 +72,10 @@ internal sealed class ModernButton : Control
     public bool ShowResetIcon { get; set; }
     public bool ShowClearIcon { get; set; }
     public bool ShowDotsIcon { get; set; }
+    private Color? _borderColorOverride;
+    private Color? _foreColorOverride;
+    public Color? BorderColorOverride { get => _borderColorOverride; set { _borderColorOverride = value; Invalidate(); } }
+    public Color? ForeColorOverride { get => _foreColorOverride; set { _foreColorOverride = value; Invalidate(); } }
     private PlayGlyphKind _playGlyph = PlayGlyphKind.None;
     public PlayGlyphKind PlayGlyph { get => _playGlyph; set { _playGlyph = value; Invalidate(); } }
 
@@ -264,7 +268,7 @@ internal sealed class ModernButton : Control
         }
 
         Color actual = _pressed ? Theme.Blend(baseBg, Color.Black, 0.16f) : (_hovered ? hoverBg : baseBg);
-        return (actual, border, fg);
+        return (actual, _borderColorOverride ?? border, _foreColorOverride ?? fg);
     }
 }
 

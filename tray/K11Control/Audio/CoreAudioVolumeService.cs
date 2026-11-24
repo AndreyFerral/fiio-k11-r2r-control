@@ -40,6 +40,63 @@ public sealed class CoreAudioVolumeService
     private const uint ClsctxAll = 23;
     private readonly object _txLock = new();
 
+    public static bool IsChannelImbalanced(float ch0Db, float ch1Db) =>
+        float.IsFinite(ch0Db) && float.IsFinite(ch1Db) && MathF.Abs(ch0Db - ch1Db) >= 0.5f;
+
+    public static float ComputeTargetBalancedDb(float ch0Db, float ch1Db, float minDb = -63f, float maxDb = 0f)
+    {
+        if (minDb > maxDb)
+        {
+            (minDb, maxDb) = (maxDb, minDb);
+        }
+
+        if (!float.IsFinite(ch0Db) || !float.IsFinite(ch1Db))
+        {
+            return Math.Clamp(0f, minDb, maxDb);
+        }
+
+        float rounded = MathF.Round(Math.Clamp(MathF.Max(ch0Db, ch1Db), minDb, maxDb));
+        return MathF.Abs(rounded) < 0.001f ? 0f : rounded;
+    }
+
+    public bool TryBalanceChannels(out K11AudioEndpointInfo? updated, out string? error)
+    {
+        lock (_txLock)
+        {
+            string? capturedError = null;
+            updated = WithK11Endpoint((id, friendly, iface, vol) =>
+            {
+                Marshal.ThrowExceptionForHR(vol.GetChannelCount(out uint chCount));
+                if (chCount < 2)
+                {
+                    capturedError = "Endpoint has fewer than 2 channels";
+                    return null;
+                }
+
+                Marshal.ThrowExceptionForHR(vol.GetVolumeRange(out float minDb, out float maxDb, out float stepDb));
+                Marshal.ThrowExceptionForHR(vol.GetChannelVolumeLevel(0, out float ch0));
+                Marshal.ThrowExceptionForHR(vol.GetChannelVolumeLevel(1, out float ch1));
+                float targetDb = ComputeTargetBalancedDb(ch0, ch1, minDb, maxDb);
+
+                Guid ctx = Guid.Empty;
+                Marshal.ThrowExceptionForHR(vol.SetChannelVolumeLevel(0, targetDb, ref ctx));
+                Marshal.ThrowExceptionForHR(vol.SetChannelVolumeLevel(1, targetDb, ref ctx));
+
+                Marshal.ThrowExceptionForHR(vol.GetMasterVolumeLevel(out float masterDb));
+                Marshal.ThrowExceptionForHR(vol.GetMasterVolumeLevelScalar(out float masterScalar));
+                Marshal.ThrowExceptionForHR(vol.GetMute(out bool muted));
+                Marshal.ThrowExceptionForHR(vol.GetChannelVolumeLevel(0, out float afterCh0));
+                Marshal.ThrowExceptionForHR(vol.GetChannelVolumeLevel(1, out float afterCh1));
+
+                return new K11AudioEndpointInfo(
+                    id, friendly, iface, masterDb, masterScalar, afterCh0, afterCh1, muted, minDb, maxDb, stepDb);
+            });
+
+            error = updated is null ? (capturedError ?? "K11 R2R audio endpoint not available") : null;
+            return updated is not null;
+        }
+    }
+
     public K11AudioEndpointInfo? TryGetEndpointInfo()
     {
         return WithK11Endpoint((id, friendly, iface, vol) =>
