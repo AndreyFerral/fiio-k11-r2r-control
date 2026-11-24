@@ -60,14 +60,26 @@ Windows system tray control app and patched `M79` firmware for the **FiiO K11 R2
 
 ---
 
-## Quick Start
+## Setup & Flashing Guide
 
-1. Download the standalone archive from **Releases** (`FiiO-K11-R2R-Control-v*-win-x64.zip` — `K11Control.exe` is self-contained and does not require installing `.NET Runtime`).
-2. Download the official **M79 firmware package** from FiiO (it includes `GD32_MCU_HID_IAP_Programmer.exe` and the stock `k11R2R_app1_m79.hex` for rollback; proprietary vendor files are not stored in this repository).
-3. On the K11 R2R menu, select **`UPDATE → Y`**, open `GD32_MCU_HID_IAP_Programmer.exe`, and flash **`k11R2R_m79_full.hex`**.
-4. Launch **`K11Control.exe`** — it runs quietly in the Windows system tray.
+### 1. Prepare Files (Windows 10 / 11)
+1. Download **`FiiO-K11-R2R-Control-v*-win-x64.zip`** from **Releases**:
+   - **`k11R2R_m79_full.hex`** *(recommended)* — full USB control for `K11Control.exe` + `LO` disabled.
+   - **`k11R2R_m79_no-lo.hex`** — firmware-only patch (disables `LO` + USB stability fix, without tray control).
+   - **`K11Control.exe`** — standalone tray app (self-contained, no `.NET Runtime` needed).
+2. Download the [official FiiO K11 R2R M79 package](https://forum.fiio.com/note/showNoteId.html?id=202507021516543188544) to get **`GD32_MCU_HID_IAP_Programmer.exe`** and the stock **`k11R2R_app1_m79.hex`** (kept for rollback).
 
-> **Rollback:** restore stock firmware anytime by flashing FiiO's original **`k11R2R_app1_m79.hex`** with the same programmer.
+### 2. Flash the Firmware
+Connect the K11 R2R directly to your PC via USB (do not disconnect power or USB during flashing):
+1. Turn on the K11 R2R and **press & hold the volume knob (~2 s)** to enter the menu.
+2. Rotate to **`UPDATE`** → short press the knob → rotate to **`Y`** → short press to confirm. The DAC screen now shows **`RETURN`**.
+3. Run **`GD32_MCU_HID_IAP_Programmer.exe`** and verify **`IAP Device`** displays **`GD32 USB IAP in FS Mode`**.
+4. Click **`open`** (under *Download APP program file*) and choose **`k11R2R_m79_full.hex`**.
+5. Click **`OK`** to start flashing. Once **`Download successfully!`** appears, confirm the popup and click **`Cancel`** to close the window *(do not click `OK` a second time or `Leave IAP`)*.
+6. Back on the DAC screen showing **`RETURN`**, **short press the knob** → select **`Y`** → short press to reboot into the patched firmware.
+7. Launch **`K11Control.exe`** (minimizes to the Windows system tray).
+
+> **Rollback & Recovery:** flash FiiO's original **`k11R2R_app1_m79.hex`** using the same steps at any time. The bootloader (`< 0x08008000`) is untouched by patches — if an update is interrupted, power-cycle the DAC, enter **`UPDATE → Y`**, and re-flash.
 
 ---
 
