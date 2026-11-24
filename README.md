@@ -4,6 +4,9 @@
 
 Windows system tray control app and patched `M79` firmware for the **FiiO K11 R2R** DAC/Amp — switch outputs safely, customize the 14-segment LCD and 3-zone RGB lighting over USB, and bind global hotkeys with zero hardware mods and zero writes to MCU Flash.
 
+> [!WARNING]
+> **Compatibility:** strictly for **FiiO K11 R2R** targeting official firmware **`M79`** (not compatible with the regular non-R2R FiiO K11 or other firmware revisions).
+
 <p align="center">
   <img src="docs/images/hardware-demo.jpg" width="560" alt="FiiO K11 R2R displaying custom Cyrillic LCD text and custom red RGB" /><br />
   <sub>Custom Cyrillic LCD text (<b>ВОДОРОД</b>, hidden status icons) and custom red <b>FIIO</b> RGB controlled via USB</sub>
