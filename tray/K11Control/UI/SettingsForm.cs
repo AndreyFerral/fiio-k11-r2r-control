@@ -67,6 +67,7 @@ public sealed class SettingsForm : Form
     private ModernButton _rebootBtn = null!;
     private RoundedCardPanel _balanceCard = null!;
     private Label _balanceLbl = null!;
+    private Label _balanceTargetLbl = null!;
     private ModernButton _balanceFixBtn = null!;
     private readonly ToolTip _toolTip = new();
 
@@ -274,10 +275,15 @@ public sealed class SettingsForm : Form
             _balanceCard.Visible = show;
         if (show && _audioEndpoint is not null)
         {
+            float targetDb = CoreAudioVolumeService.ComputeTargetBalancedDb(
+                _audioEndpoint.Ch0Db, _audioEndpoint.Ch1Db, _audioEndpoint.MinDb, _audioEndpoint.MaxDb);
             string warnText = AppStrings.OutBalanceWarn(_config.Language, _audioEndpoint.Ch0Db, _audioEndpoint.Ch1Db);
+            string targetText = AppStrings.SidebarBalanceTarget(_config.Language, targetDb);
             string btnText = AppStrings.OutBalanceFixBtn(_config.Language);
             if (!string.Equals(_balanceLbl.Text, warnText, StringComparison.Ordinal))
                 _balanceLbl.Text = warnText;
+            if (!string.Equals(_balanceTargetLbl.Text, targetText, StringComparison.Ordinal))
+                _balanceTargetLbl.Text = targetText;
             if (!string.Equals(_balanceFixBtn.Text, btnText, StringComparison.Ordinal))
                 _balanceFixBtn.Text = btnText;
             if (!_balanceFixBtn.Enabled)
@@ -344,6 +350,58 @@ public sealed class SettingsForm : Form
             sidebar.Controls.Add(btn);
         }
 
+        // Conditional sidebar alert above status card (visible only when K11 R2R audio is active and L != R)
+        _balanceCard = new RoundedCardPanel
+        {
+            Location = new Point(11, 336),
+            Size = new Size(164, 54),
+            CornerRadius = 8f,
+            CardColor = Color.FromArgb(34, 29, 24),
+            BorderColor = Color.FromArgb(145, Theme.AccentAmber),
+            Visible = false
+        };
+        _balanceCard.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var dotBrush = new SolidBrush(Theme.AccentAmber);
+            e.Graphics.FillEllipse(dotBrush, 10f, 10.5f, 7.5f, 7.5f);
+        };
+        _balanceLbl = new Label
+        {
+            Font = Theme.FontSmall,
+            ForeColor = Theme.AccentAmberHover,
+            Location = new Point(20, 5),
+            Size = new Size(136, 18),
+            TextAlign = ContentAlignment.MiddleLeft,
+            UseMnemonic = false
+        };
+        _balanceTargetLbl = new Label
+        {
+            Font = Theme.FontSmall,
+            ForeColor = Theme.TextSecondary,
+            Location = new Point(10, 25),
+            Size = new Size(54, 22),
+            TextAlign = ContentAlignment.MiddleLeft,
+            UseMnemonic = false
+        };
+        _balanceFixBtn = new ModernButton
+        {
+            Variant = ButtonVariant.Amber,
+            CornerRadius = 5f,
+            Font = Theme.FontSmall,
+            Location = new Point(66, 25),
+            Size = new Size(88, 22)
+        };
+        _balanceFixBtn.Click += (_, _) =>
+        {
+            _balanceFixBtn.Enabled = false;
+            var updated = _onFixBalance();
+            if (updated is not null)
+                _audioEndpoint = updated;
+            UpdateChannelBalanceBanner();
+        };
+        _balanceCard.Controls.AddRange([_balanceLbl, _balanceTargetLbl, _balanceFixBtn]);
+
         _statusCard = new SidebarStatusCard
         {
             Location = new Point(11, 396),
@@ -385,7 +443,7 @@ public sealed class SettingsForm : Form
             ApplyLanguage(lang);
             _onLanguageChanged(lang);
         };
-        sidebar.Controls.AddRange([_statusCard, _rebootBtn, langLabel, _langToggle]);
+        sidebar.Controls.AddRange([_balanceCard, _statusCard, _rebootBtn, langLabel, _langToggle]);
 
         // Right Workspace + Footer
         var rightShell = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgWindow };
@@ -589,42 +647,7 @@ public sealed class SettingsForm : Form
         _enforceOutputSwitch.CheckedChanged += (_, _) => _startupOutputToggle.Enabled = _enforceOutputSwitch.Checked;
         bootCard.Controls.AddRange([_bootTitle, _autostartSwitch, _enforceOutputSwitch, _startupOutputToggle]);
 
-        // Card 4: Conditional L/R channel imbalance alert (visible only when K11 R2R audio endpoint is active and L != R)
-        _balanceCard = new RoundedCardPanel
-        {
-            Location = new Point(0, 434),
-            Size = new Size(526, 42),
-            CardColor = Color.FromArgb(34, 29, 24),
-            BorderColor = Color.FromArgb(145, Theme.AccentAmber),
-            Visible = false
-        };
-        _balanceLbl = new Label
-        {
-            Font = Theme.FontBodyBold,
-            ForeColor = Theme.AccentAmberHover,
-            Location = new Point(14, 6),
-            Size = new Size(382, 30),
-            TextAlign = ContentAlignment.MiddleLeft,
-            UseMnemonic = false
-        };
-        _balanceFixBtn = new ModernButton
-        {
-            Variant = ButtonVariant.Amber,
-            CornerRadius = 6f,
-            Location = new Point(402, 7),
-            Size = new Size(110, 28)
-        };
-        _balanceFixBtn.Click += (_, _) =>
-        {
-            _balanceFixBtn.Enabled = false;
-            var updated = _onFixBalance();
-            if (updated is not null)
-                _audioEndpoint = updated;
-            UpdateChannelBalanceBanner();
-        };
-        _balanceCard.Controls.AddRange([_balanceLbl, _balanceFixBtn]);
-
-        page.Controls.AddRange([switchCard, modesCard, bootCard, _balanceCard]);
+        page.Controls.AddRange([switchCard, modesCard, bootCard]);
         return page;
     }
 

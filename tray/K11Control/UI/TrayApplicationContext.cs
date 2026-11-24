@@ -20,6 +20,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly System.Windows.Forms.Timer _pollTimer;
 
     private readonly ToolStripMenuItem _statusItem;
+    private readonly ToolStripMenuItem _balanceTrayItem;
     private readonly ToolStripMenuItem _outputToggleItem;
     private readonly ToolStripMenuItem _outputPreItem;
     private readonly ToolStripMenuItem _outputPoItem;
@@ -70,6 +71,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         _trayIconMuted = Theme.CreateTrayIcon(muted: true);
 
         _statusItem = new ToolStripMenuItem { Enabled = false };
+        _balanceTrayItem = new ToolStripMenuItem("", null, (_, _) => FixAudioBalanceFromUi())
+        {
+            Visible = false,
+            ForeColor = Color.FromArgb(251, 191, 36)
+        };
         _outputToggleItem = new ToolStripMenuItem("", null, (_, _) => SendOutputAction(OutputAction.Toggle, "Toggle PO <-> PRE"));
         _outputPreItem = new ToolStripMenuItem("", null, (_, _) => SendOutputAction(OutputAction.PRE, "Switch to PRE"));
         _outputPoItem = new ToolStripMenuItem("", null, (_, _) => SendOutputAction(OutputAction.PO, "Switch to PO"));
@@ -115,6 +121,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         };
         menu.Items.AddRange([
             _statusItem,
+            _balanceTrayItem,
             new ToolStripSeparator(),
             _outputToggleItem,
             _outputPreItem,
@@ -238,6 +245,12 @@ public sealed class TrayApplicationContext : ApplicationContext
         AppLanguage lang = _config.Language;
 
         _statusItem.Text = AppStrings.TrayStatus(lang, _dacConnected);
+        bool imbalanced = _dacConnected
+            && _lastAudioEndpoint is not null
+            && CoreAudioVolumeService.IsChannelImbalanced(_lastAudioEndpoint.Ch0Db, _lastAudioEndpoint.Ch1Db);
+        _balanceTrayItem.Visible = imbalanced;
+        if (imbalanced && _lastAudioEndpoint is not null)
+            _balanceTrayItem.Text = AppStrings.TrayBalanceFix(lang, _lastAudioEndpoint.Ch0Db, _lastAudioEndpoint.Ch1Db);
 
         _outputToggleItem.Text = AppStrings.OutToggleBtn(lang);
         _outputPreItem.Text = AppStrings.OutPreBtn(lang);
@@ -289,7 +302,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _rebootItem.Text = AppStrings.RebootBtn(lang);
         _exitItem.Text = AppStrings.TrayExit(lang);
 
-        _notifyIcon.Text = AppStrings.TrayTooltip(lang, _dacConnected, _audioMuted);
+        _notifyIcon.Text = AppStrings.TrayTooltip(lang, _dacConnected, _audioMuted, imbalanced);
 
         if (_settingsForm is { IsDisposed: false })
             _settingsForm.SetDeviceStatus(_dacConnected, _audioMuted, _lastAudioEndpoint);
@@ -488,16 +501,18 @@ public sealed class TrayApplicationContext : ApplicationContext
                 _config.Save();
             },
             onApplyWithFeedback: ApplySettingsFromUi,
-            onFixBalance: () =>
-            {
-                _audio.TryBalanceChannels(out var updated, out _);
-                RefreshDeviceState();
-                return updated ?? _lastAudioEndpoint;
-            },
+            onFixBalance: FixAudioBalanceFromUi,
             initialAudioEndpoint: _lastAudioEndpoint);
         _settingsForm.FormClosed += (_, _) => _settingsForm = null;
         _settingsForm.Show();
         _settingsForm.Activate();
+    }
+
+    private K11AudioEndpointInfo? FixAudioBalanceFromUi()
+    {
+        _audio.TryBalanceChannels(out var updated, out _);
+        RefreshDeviceState();
+        return updated ?? _lastAudioEndpoint;
     }
 
     private void ApplySettingsFromUi(TrayConfig updated, Action<bool>? onCompleted = null)

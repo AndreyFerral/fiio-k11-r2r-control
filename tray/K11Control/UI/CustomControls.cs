@@ -55,9 +55,9 @@ internal sealed class RoundedCardPanel : Panel
         var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
         using var path = Theme.CreateRoundedPath(rect, CornerRadius);
         using var fill = new SolidBrush(CardColor);
-        using var pen = new Pen(BorderColor, 1f);
-        e.Graphics.FillPath(fill, path);
-        e.Graphics.DrawPath(pen, path);
+        using (var pen = new Pen(BorderColor, 1f))
+            e.Graphics.DrawPath(pen, path);
+        base.OnPaint(e);
     }
 }
 

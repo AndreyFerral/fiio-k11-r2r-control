@@ -566,11 +566,16 @@ using (var form = new K11Control.UI.SettingsForm(
     var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
     var balanceVisibleField = typeof(K11Control.UI.SettingsForm).GetField("_balanceBannerVisible", flags)!;
     bool IsBannerShown() => (bool)balanceVisibleField.GetValue(form)!;
+    var balanceCard = (Control)typeof(K11Control.UI.SettingsForm).GetField("_balanceCard", flags)!.GetValue(form)!;
     var balanceLbl = (Control)typeof(K11Control.UI.SettingsForm).GetField("_balanceLbl", flags)!.GetValue(form)!;
+    var balanceTargetLbl = (Control)typeof(K11Control.UI.SettingsForm).GetField("_balanceTargetLbl", flags)!.GetValue(form)!;
     var balanceFixBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_balanceFixBtn", flags)!.GetValue(form)!;
     var applyBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_applyBtn", flags)!.GetValue(form)!;
     var applyCurrentEdits = typeof(K11Control.UI.SettingsForm).GetMethod("ApplyCurrentEdits", flags)!;
     var applyTimer = (System.Windows.Forms.Timer)typeof(K11Control.UI.SettingsForm).GetField("_applyFeedbackTimer", flags)!.GetValue(form)!;
+
+    Assert(balanceCard.Parent is { Width: 186 },
+        $"Balance alert card lives inside left sidebar across tabs (parent width={balanceCard.Parent?.Width})");
 
     Assert(!IsBannerShown(),
         "Channel balance card stays hidden when K11 R2R is disconnected even with stale skewed levels");
@@ -580,8 +585,8 @@ using (var form = new K11Control.UI.SettingsForm(
         "Channel balance card stays hidden when K11 R2R is connected and L == R");
 
     form.SetDeviceStatus(true, false, skewedEp);
-    Assert(IsBannerShown() && balanceLbl.Text.Contains("Л -1 / П 0") && balanceFixBtn.Text == "Выровнять",
-        $"Channel balance card appears when connected and L/R skewed (got label '{balanceLbl.Text}')");
+    Assert(IsBannerShown() && balanceLbl.Text == "Баланс: -1 / 0 дБ" && balanceTargetLbl.Text == "→ 0 дБ" && balanceFixBtn.Text == "Выровнять",
+        $"Sidebar balance card appears when connected and L/R skewed (got '{balanceLbl.Text}' / '{balanceTargetLbl.Text}')");
 
     // Apply offline vs error vs success feedback without resizing button
     form.SetDeviceStatus(false, false, null);
@@ -618,17 +623,17 @@ using (var form = new K11Control.UI.SettingsForm(
     // Check EN labels when switched to English while skewed
     form.ApplyLanguage(AppLanguage.En);
     form.SetDeviceStatus(true, false, skewedEp);
-    Assert(IsBannerShown() && balanceLbl.Text == "L/R imbalance: L -1 / R 0 dB" && balanceFixBtn.Text == "Balance",
-        $"English localization updates balance alert label and compact button (got '{balanceLbl.Text}' / '{balanceFixBtn.Text}')");
+    Assert(IsBannerShown() && balanceLbl.Text == "Balance: -1 / 0 dB" && balanceTargetLbl.Text == "→ 0 dB" && balanceFixBtn.Text == "Balance",
+        $"English localization updates sidebar balance alert and compact button (got '{balanceLbl.Text}' / '{balanceFixBtn.Text}')");
 
-    // Switching to another main page clears any transient Apply feedback immediately
+    // Switching to another main page clears any transient Apply feedback immediately while sidebar balance stays active
     form.ApplyLanguage(AppLanguage.Ru);
     nextApplyResult = true;
     applyCurrentEdits.Invoke(form, [true]);
     Assert(applyBtn.Text == "Применено ✓", "Apply feedback shown before page switch");
     typeof(K11Control.UI.SettingsForm).GetMethod("SelectPage", flags)!.Invoke(form, [2]);
-    Assert(applyBtn.Text == "Применить" && borderProp.GetValue(applyBtn) is null,
-        $"Switching to another settings page clears transient Apply feedback immediately (got '{applyBtn.Text}')");
+    Assert(applyBtn.Text == "Применить" && borderProp.GetValue(applyBtn) is null && IsBannerShown(),
+        $"Switching to another settings page clears transient Apply feedback while keeping sidebar balance alert visible (got '{applyBtn.Text}')");
 }
 
 // Background-thread Apply callback must marshal to UI thread so WinForms Timer ticks & resets button

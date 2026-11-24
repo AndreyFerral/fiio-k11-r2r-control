@@ -36,8 +36,11 @@ internal static class AppStrings
 
     public static string OutBalanceWarn(AppLanguage l, float ch0Db, float ch1Db) =>
         Tr(l,
-            $"Баланс сбит: Л {FormatDbShort(ch0Db)} / П {FormatDbShort(ch1Db)} дБ",
-            $"L/R imbalance: L {FormatDbShort(ch0Db)} / R {FormatDbShort(ch1Db)} dB");
+            $"Баланс: {FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)} дБ",
+            $"Balance: {FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)} dB");
+
+    public static string SidebarBalanceTarget(AppLanguage l, float targetDb) =>
+        Tr(l, $"→ {FormatDbShort(targetDb)} дБ", $"→ {FormatDbShort(targetDb)} dB");
 
     public static string OutBalanceFixBtn(AppLanguage l) => Tr(l, "Выровнять", "Balance");
 
@@ -222,10 +225,19 @@ internal static class AppStrings
     public static string TrayStatus(AppLanguage l, bool online) => online
         ? Tr(l, "FiiO K11 R2R  •  Подключён", "FiiO K11 R2R  •  Connected")
         : Tr(l, "FiiO K11 R2R  •  Отключён", "FiiO K11 R2R  •  Disconnected");
-    public static string TrayTooltip(AppLanguage l, bool online, bool muted = false)
+    public static string TrayBalanceFix(AppLanguage l, float ch0Db, float ch1Db) => Tr(l,
+        $"Выровнять баланс ({FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)} дБ)",
+        $"Fix L/R balance ({FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)} dB)");
+    public static string TrayTooltip(AppLanguage l, bool online, bool muted = false, bool imbalanced = false)
     {
         if (!online)
             return Tr(l, "FiiO K11 R2R Control — Отключён", "FiiO K11 R2R Control — Offline");
+        if (imbalanced)
+        {
+            return muted
+                ? Tr(l, "FiiO K11 R2R — Звук выкл. • Баланс L/R", "FiiO K11 R2R — Muted • L/R skewed")
+                : Tr(l, "FiiO K11 R2R — Баланс L/R сбит!", "FiiO K11 R2R — L/R balance off!");
+        }
         return muted
             ? Tr(l, "FiiO K11 R2R Control — Подключён • Звук выкл.", "FiiO K11 R2R Control — Online • Muted")
             : Tr(l, "FiiO K11 R2R Control — Подключён", "FiiO K11 R2R Control — Online");
