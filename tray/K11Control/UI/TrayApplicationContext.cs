@@ -62,7 +62,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _config = TrayConfig.Load();
         _config.CustomLcd.EnsureSticksPresetsInitialized(_config.Language);
         _previewOutput = _config.PreferredOutput == OutputMode.PO ? OutputMode.PO : OutputMode.PRE;
-        _uiSync = SynchronizationContext.Current;
+        _uiSync = EnsureUiSynchronizationContext();
         _dac = new DacCommandClient(_audio);
         _hotkeys = new GlobalHotkeyManager();
         _hotkeys.HotkeyPressed += OnHotkeyPressed;
@@ -599,6 +599,17 @@ public sealed class TrayApplicationContext : ApplicationContext
             if (onCompleted is not null)
                 PostUi(() => onCompleted(ok));
         });
+    }
+
+    public static SynchronizationContext EnsureUiSynchronizationContext()
+    {
+        var current = SynchronizationContext.Current;
+        if (current is not null)
+            return current;
+
+        var created = new WindowsFormsSynchronizationContext();
+        SynchronizationContext.SetSynchronizationContext(created);
+        return created;
     }
 
     private void PostUi(Action action)

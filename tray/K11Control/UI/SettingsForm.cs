@@ -176,13 +176,8 @@ public sealed class SettingsForm : Form
             _savedBadgeActive = false;
             _btnSavePreset.Text = AppStrings.LcdSavePresetBtn(_config.Language);
         };
-        _applyFeedbackTimer.Interval = 1600;
-        _applyFeedbackTimer.Tick += (_, _) =>
-        {
-            _applyFeedbackTimer.Stop();
-            _applyFeedbackState = ApplyFeedbackState.Normal;
-            UpdateApplyButtonAppearance();
-        };
+        _applyFeedbackTimer.Interval = 1400;
+        _applyFeedbackTimer.Tick += (_, _) => ClearApplyFeedback();
 
         Text = "FiiO K11 R2R Control";
         Icon = Theme.AppIcon;
@@ -470,6 +465,9 @@ public sealed class SettingsForm : Form
     {
         if (ActiveControl is TextBox)
             ActiveControl = null;
+
+        if (index != _activePage)
+            ClearApplyFeedback();
 
         _activePage = index;
         for (int i = 0; i < _pages.Length; i++)
@@ -1761,16 +1759,48 @@ public sealed class SettingsForm : Form
         int seq = ++_applyFeedbackSeq;
         _onApplyAsync(CloneConfigSnapshot(_config), ok =>
         {
-            if (!showFeedback || IsDisposed || seq != _applyFeedbackSeq)
+            if (!showFeedback)
                 return;
 
-            _applyFeedbackState = ok
-                ? ApplyFeedbackState.Success
-                : (_dacConnected ? ApplyFeedbackState.Error : ApplyFeedbackState.Offline);
-            UpdateApplyButtonAppearance();
-            _applyFeedbackTimer.Stop();
-            _applyFeedbackTimer.Start();
+            void Deliver()
+            {
+                if (IsDisposed || Disposing || seq != _applyFeedbackSeq)
+                    return;
+
+                _applyFeedbackState = ok
+                    ? ApplyFeedbackState.Success
+                    : (_dacConnected ? ApplyFeedbackState.Error : ApplyFeedbackState.Offline);
+                UpdateApplyButtonAppearance();
+                _applyFeedbackTimer.Stop();
+                _applyFeedbackTimer.Start();
+            }
+
+            if (IsDisposed || Disposing)
+                return;
+
+            // Marshal to the Form's UI thread so _applyFeedbackTimer ticks on the WinForms message pump.
+            if (InvokeRequired && IsHandleCreated)
+            {
+                try { BeginInvoke((Action)Deliver); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+            }
+            else
+            {
+                Deliver();
+            }
         });
+    }
+
+    private void ClearApplyFeedback()
+    {
+        _applyFeedbackTimer.Stop();
+        if (_applyFeedbackState == ApplyFeedbackState.Normal)
+            return;
+
+        _applyFeedbackState = ApplyFeedbackState.Normal;
+        if (!IsDisposed && _applyBtn is not null)
+            UpdateApplyButtonAppearance();
     }
 
     private void UpdateApplyButtonAppearance()

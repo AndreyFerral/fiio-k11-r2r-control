@@ -620,6 +620,80 @@ using (var form = new K11Control.UI.SettingsForm(
     form.SetDeviceStatus(true, false, skewedEp);
     Assert(IsBannerShown() && balanceLbl.Text == "L/R imbalance: L -1 / R 0 dB" && balanceFixBtn.Text == "Balance",
         $"English localization updates balance alert label and compact button (got '{balanceLbl.Text}' / '{balanceFixBtn.Text}')");
+
+    // Switching to another main page clears any transient Apply feedback immediately
+    form.ApplyLanguage(AppLanguage.Ru);
+    nextApplyResult = true;
+    applyCurrentEdits.Invoke(form, [true]);
+    Assert(applyBtn.Text == "Применено ✓", "Apply feedback shown before page switch");
+    typeof(K11Control.UI.SettingsForm).GetMethod("SelectPage", flags)!.Invoke(form, [2]);
+    Assert(applyBtn.Text == "Применить" && borderProp.GetValue(applyBtn) is null,
+        $"Switching to another settings page clears transient Apply feedback immediately (got '{applyBtn.Text}')");
+}
+
+// Background-thread Apply callback must marshal to UI thread so WinForms Timer ticks & resets button
+{
+    var prevSync = SynchronizationContext.Current;
+    SynchronizationContext.SetSynchronizationContext(null);
+    try
+    {
+        var installed = K11Control.UI.TrayApplicationContext.EnsureUiSynchronizationContext();
+        Assert(installed is System.Windows.Forms.WindowsFormsSynchronizationContext && SynchronizationContext.Current == installed,
+            "EnsureUiSynchronizationContext installs WindowsFormsSynchronizationContext before controls exist");
+    }
+    finally
+    {
+        SynchronizationContext.SetSynchronizationContext(prevSync);
+    }
+
+    using var asyncForm = new K11Control.UI.SettingsForm(
+        new TrayConfig { Language = AppLanguage.Ru },
+        dacConnected: true,
+        audioMuted: false,
+        _ => { },
+        _ => { },
+        () => { },
+        _ => { },
+        () => { },
+        onApplyWithFeedback: (_, cb) => Task.Run(() => { Thread.Sleep(15); cb(true); }));
+    asyncForm.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+    asyncForm.Location = new System.Drawing.Point(-32000, -32000);
+    asyncForm.ShowInTaskbar = false;
+    asyncForm.Opacity = 0;
+    asyncForm.Show();
+
+    try
+    {
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var applyBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_applyBtn", flags)!.GetValue(asyncForm)!;
+        var applyTimer = (System.Windows.Forms.Timer)typeof(K11Control.UI.SettingsForm).GetField("_applyFeedbackTimer", flags)!.GetValue(asyncForm)!;
+        var applyCurrentEdits = typeof(K11Control.UI.SettingsForm).GetMethod("ApplyCurrentEdits", flags)!;
+        applyTimer.Interval = 50;
+
+        applyCurrentEdits.Invoke(asyncForm, [true]);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        bool sawApplied = false;
+        bool sawReverted = false;
+        while (sw.ElapsedMilliseconds < 2000)
+        {
+            System.Windows.Forms.Application.DoEvents();
+            if (!sawApplied && applyBtn.Text == "Применено ✓")
+                sawApplied = true;
+            if (sawApplied && applyBtn.Text == "Применить")
+            {
+                sawReverted = true;
+                break;
+            }
+            Thread.Sleep(5);
+        }
+
+        Assert(sawApplied && sawReverted,
+            $"Background worker Apply callback marshals to UI thread and auto-resets via WM_TIMER (applied={sawApplied}, reverted={sawReverted}, final='{applyBtn.Text}')");
+    }
+    finally
+    {
+        asyncForm.Close();
+    }
 }
 
 return failures == 0 ? 0 : 1;
