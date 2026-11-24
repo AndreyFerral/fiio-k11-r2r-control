@@ -22,11 +22,9 @@ internal static class AppStrings
         _ => NavDiag(l)
     };
 
-    public static string StatusConnected(AppLanguage l) => Tr(l, "Подключён", "Connected");
-    public static string StatusDisconnected(AppLanguage l) => Tr(l, "Отключён", "Disconnected");
     public static string StatusAudioMuted(AppLanguage l) => Tr(l, "Звук выключен", "Audio Muted");
     public static string StatusAudioActive(AppLanguage l) => Tr(l, "Звук включён", "Audio Active");
-    public static string StatusAudioUnknown(AppLanguage l) => Tr(l, "Звук: нет данных", "Audio: Offline");
+    public static string StatusAudioUnknown(AppLanguage l) => Tr(l, "ЦАП отключён", "DAC Offline");
     public static string BtnClose(AppLanguage l) => Tr(l, "Закрыть", "Close");
     public static string BtnApply(AppLanguage l) => Tr(l, "Применить", "Apply");
     public static string BtnApplyDone(AppLanguage l) => Tr(l, "Применено ✓", "Applied ✓");

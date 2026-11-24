@@ -1438,48 +1438,6 @@ internal sealed class ModernDelayStepper : Control
     }
 }
 
-internal sealed class SidebarConnectionBadge : Control
-{
-    private bool _connected;
-    private AppLanguage _language = AppLanguage.Ru;
-
-    public SidebarConnectionBadge()
-    {
-        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
-        Cursor = Cursors.Default;
-        Size = new Size(164, 24);
-    }
-
-    public void UpdateState(bool connected, AppLanguage language)
-    {
-        if (_connected == connected && _language == language)
-            return;
-
-        _connected = connected;
-        _language = language;
-        Invalidate();
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        var g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-        g.Clear(Theme.BgSidebar);
-
-        Color dotColor = _connected ? Theme.Success : Theme.TextMuted;
-        using (var b = new SolidBrush(dotColor))
-            g.FillEllipse(b, 10f, (Height - 7f) / 2f, 7f, 7f);
-
-        Color textColor = _connected ? Theme.TextPrimary : Theme.TextMuted;
-        string label = _connected ? AppStrings.StatusConnected(_language) : AppStrings.StatusDisconnected(_language);
-        TextRenderer.DrawText(g, label, Theme.FontSmall,
-            new Rectangle(23, 0, Width - 29, Height),
-            textColor,
-            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-    }
-}
-
 internal sealed class SidebarMuteButton : Control
 {
     private bool _connected;
@@ -1501,6 +1459,9 @@ internal sealed class SidebarMuteButton : Control
         _muted = muted;
         _language = language;
         Enabled = connected;
+        Text = !connected
+            ? AppStrings.StatusAudioUnknown(language)
+            : (muted ? AppStrings.StatusAudioMuted(language) : AppStrings.StatusAudioActive(language));
         if (!connected)
         {
             _hovered = false;

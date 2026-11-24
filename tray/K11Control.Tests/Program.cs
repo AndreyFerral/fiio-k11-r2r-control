@@ -637,19 +637,26 @@ using (var form = new K11Control.UI.SettingsForm(
     Assert(applyBtn.Text == "Применить" && borderProp.GetValue(applyBtn) is null && IsBannerShown(),
         $"Switching to another settings page clears transient Apply feedback while keeping sidebar balance alert visible (got '{applyBtn.Text}')");
 
-    // Verify new left sidebar hierarchy & rounded HotkeyCaptureBox wrapping
-    var badge = (Control)typeof(K11Control.UI.SettingsForm).GetField("_connectionBadge", flags)!.GetValue(form)!;
+    // Verify clean sidebar nav layout, equal bottom action button heights, offline label, & rounded HotkeyCaptureBox wrapping
     var muteBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_muteBtn", flags)!.GetValue(form)!;
     var rebootBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_rebootBtn", flags)!.GetValue(form)!;
     var navList = (System.Collections.IList)typeof(K11Control.UI.SettingsForm).GetField("_navButtons", flags)!.GetValue(form)!;
     var firstNav = (Control)navList[0]!;
     var hkBox = (K11Control.UI.HotkeyCaptureBox)typeof(K11Control.UI.SettingsForm).GetField("_hkToggleOut", flags)!.GetValue(form)!;
 
-    Assert(badge.Bottom < firstNav.Top && muteBtn.Top > balanceCard.Bottom && muteBtn.Height == rebootBtn.Height,
-        $"Sidebar hierarchy places passive status above nav ({badge.Bottom} < {firstNav.Top}) and equal-height bottom buttons ({muteBtn.Height} == {rebootBtn.Height})");
+    Assert(firstNav.Top == 60 && muteBtn.Top > balanceCard.Bottom && muteBtn.Height == rebootBtn.Height,
+        $"Sidebar starts nav at y=60 ({firstNav.Top}) with equal-height bottom buttons ({muteBtn.Height} == {rebootBtn.Height})");
 
     typeof(Control).GetMethod("OnClick", flags)!.Invoke(muteBtn, [EventArgs.Empty]);
-    Assert(muteCalls == 1, $"Clicking standalone sidebar Mute button invokes toggle callback (calls={muteCalls})");
+    Assert(muteCalls == 1 && muteBtn.Text == "Звук включён",
+        $"Clicking standalone sidebar Mute button invokes toggle callback when online (calls={muteCalls}, text='{muteBtn.Text}')");
+
+    form.SetDeviceStatus(false, false, null);
+    Assert(!muteBtn.Enabled && muteBtn.Text == "ЦАП отключён",
+        $"Disconnected DAC disables Mute button and labels it '{muteBtn.Text}'");
+    form.ApplyLanguage(AppLanguage.En);
+    Assert(muteBtn.Text == "DAC Offline",
+        $"English offline label shows 'DAC Offline' (got '{muteBtn.Text}')");
     Assert(hkBox.BorderStyle == System.Windows.Forms.BorderStyle.None && hkBox.Parent is { Width: 164, Height: 25 },
         $"HotkeyCaptureBox renders borderless inside rounded wrapper panel ({hkBox.Parent?.Size})");
 }

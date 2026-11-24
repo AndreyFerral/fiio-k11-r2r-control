@@ -35,7 +35,6 @@ public sealed class SettingsForm : Form
 
     private SegmentedToggle<AppLanguage> _langToggle = null!;
     private Label _pageTitleLabel = null!;
-    private SidebarConnectionBadge _connectionBadge = null!;
     private SidebarMuteButton _muteBtn = null!;
     private ModernButton _cancelBtn = null!;
     private ModernButton _applyBtn = null!;
@@ -254,7 +253,6 @@ public sealed class SettingsForm : Form
         _dacConnected = connected;
         _audioMuted = muted;
         _audioEndpoint = connected ? audioEndpoint : null;
-        _connectionBadge.UpdateState(connected, _config.Language);
         _muteBtn.UpdateState(connected, muted, _config.Language);
         _rebootBtn.Enabled = connected;
         UpdateChannelBalanceBanner();
@@ -318,12 +316,7 @@ public sealed class SettingsForm : Form
             AutoSize = true
         };
 
-        _connectionBadge = new SidebarConnectionBadge
-        {
-            Location = new Point(11, 50),
-            Size = new Size(164, 24)
-        };
-        sidebar.Controls.AddRange([brandTitle, brandSub, _connectionBadge]);
+        sidebar.Controls.AddRange([brandTitle, brandSub]);
 
         NavIconKind[] icons =
         [
@@ -340,7 +333,7 @@ public sealed class SettingsForm : Form
             var btn = new SidebarNavButton
             {
                 IconKind = icons[i],
-                Location = new Point(11, 84 + i * 44),
+                Location = new Point(11, 60 + i * 44),
                 Size = new Size(164, 38)
             };
             btn.Click += (_, _) => SelectPage(idx);
