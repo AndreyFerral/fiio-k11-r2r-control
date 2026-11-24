@@ -726,4 +726,25 @@ using (var form = new K11Control.UI.SettingsForm(
     }
 }
 
+// Fractional dB levels restore without rounding drift, and poll skips active UAC2 transfers + cooldown
+{
+    IReadOnlyList<VolumeStep> fracSteps = DacCommandProtocol.EncodeUac2Transfer(outPkt, -8.9f, -8.9f, interWriteMs: 0);
+    float end0 = fracSteps.Last(s => s.Channel == 0).LevelDb;
+    float end1 = fracSteps.Last(s => s.Channel == 1).LevelDb;
+    Assert(MathF.Abs(end0 - (-8.9f)) < 0.001f && MathF.Abs(end1 - (-8.9f)) < 0.001f,
+        $"EncodeUac2Transfer restores exact fractional OS levels without rounding skew (got {end0}, {end1})");
+
+    var audioSvc = new CoreAudioVolumeService();
+    Assert(audioSvc.IsTransferQuiet(), "CoreAudioVolumeService starts quiet before any UAC2 transfer");
+    using (audioSvc.BeginTransferBatch())
+    {
+        Assert(!audioSvc.IsTransferQuiet(0) && !audioSvc.TryGetEndpointInfoIfIdle(out _),
+            "Poll helper refuses to read endpoint while UAC2 transfer batch is active");
+    }
+    Assert(!audioSvc.IsTransferQuiet(500) && !audioSvc.TryGetEndpointInfoIfIdle(out _, cooldownMs: 500),
+        "Poll helper stays suppressed during post-transfer settle cooldown");
+    Assert(audioSvc.IsTransferQuiet(0),
+        "CoreAudioVolumeService returns idle once transfer completes and cooldown = 0");
+}
+
 return failures == 0 ? 0 : 1;

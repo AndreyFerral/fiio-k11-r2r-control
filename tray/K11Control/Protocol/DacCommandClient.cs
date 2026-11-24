@@ -353,12 +353,12 @@ public static class DacCommandProtocol
         // Commit sentinel on Ch0 (-60 dB)
         steps.Add(new VolumeStep(0, -60f, Math.Max(interWriteMs, 6)));
 
-        // Restore original OS volume levels (post-commit, CMD_ACTIVE is cleared on DAC)
-        float r0 = MathF.Round(Math.Clamp(savedCh0Db, -63f, 0f));
-        float r1 = MathF.Round(Math.Clamp(savedCh1Db, -63f, 0f));
-        if (MathF.Abs(r0 - (-60f)) >= 0.5f)
+        // Restore exact original OS volume levels (post-commit, CMD_ACTIVE is cleared on DAC)
+        float r0 = Math.Clamp(savedCh0Db, -63f, 0f);
+        float r1 = Math.Clamp(savedCh1Db, -63f, 0f);
+        if (MathF.Abs(r0 - (-60f)) >= 0.05f)
             steps.Add(new VolumeStep(0, r0, 2));
-        if (MathF.Abs(r1 - lastCh1Db) >= 0.5f)
+        if (MathF.Abs(r1 - lastCh1Db) >= 0.05f)
             steps.Add(new VolumeStep(1, r1, 2));
 
         return steps;
@@ -468,7 +468,10 @@ public sealed class DacCommandClient : IDisposable
     private readonly CoreAudioVolumeService _audio;
     private readonly BlockingCollection<QueuedJob> _queue = new();
     private readonly Thread _workerThread;
+    private int _activeJobs;
     private bool _disposed;
+
+    public bool HasPendingWork => Volatile.Read(ref _activeJobs) > 0 || _queue.Count > 0;
 
     public DacCommandClient(CoreAudioVolumeService audio)
     {
@@ -527,8 +530,10 @@ public sealed class DacCommandClient : IDisposable
     {
         foreach (QueuedJob job in _queue.GetConsumingEnumerable())
         {
+            Interlocked.Increment(ref _activeJobs);
             try
             {
+                using var txScope = _audio.BeginTransferBatch();
                 if (job.DirectPacket is byte[] directPacket)
                 {
                     bool ok = TrySendPacketWithRetry(directPacket, out string? err);
@@ -579,6 +584,10 @@ public sealed class DacCommandClient : IDisposable
             catch (Exception ex)
             {
                 job.Callback?.Invoke(false, ex.Message);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeJobs);
             }
         }
     }

@@ -39,6 +39,35 @@ public sealed class CoreAudioVolumeService
     private const uint StgmRead = 0x00000000;
     private const uint ClsctxAll = 23;
     private readonly object _txLock = new();
+    private int _txDepth;
+    private long _lastTxEndTick = long.MinValue;
+
+    public IDisposable BeginTransferBatch()
+    {
+        Interlocked.Increment(ref _txDepth);
+        return new TransferBatchScope(this);
+    }
+
+    public bool IsTransferQuiet(int cooldownMs = 350)
+    {
+        if (Volatile.Read(ref _txDepth) > 0)
+            return false;
+
+        long endTick = Volatile.Read(ref _lastTxEndTick);
+        return endTick == long.MinValue || (Environment.TickCount64 - endTick) >= cooldownMs;
+    }
+
+    private sealed class TransferBatchScope(CoreAudioVolumeService owner) : IDisposable
+    {
+        private int _disposed;
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                return;
+            Volatile.Write(ref owner._lastTxEndTick, Environment.TickCount64);
+            Interlocked.Decrement(ref owner._txDepth);
+        }
+    }
 
     public static bool IsChannelImbalanced(float ch0Db, float ch1Db) =>
         float.IsFinite(ch0Db) && float.IsFinite(ch1Db) && MathF.Abs(ch0Db - ch1Db) >= 0.5f;
@@ -98,6 +127,37 @@ public sealed class CoreAudioVolumeService
     }
 
     public K11AudioEndpointInfo? TryGetEndpointInfo()
+    {
+        lock (_txLock)
+            return ReadEndpointInfoCore();
+    }
+
+    public bool TryGetEndpointInfoIfIdle(out K11AudioEndpointInfo? info, int cooldownMs = 350)
+    {
+        if (!IsTransferQuiet(cooldownMs) || !Monitor.TryEnter(_txLock))
+        {
+            info = null;
+            return false;
+        }
+
+        try
+        {
+            if (!IsTransferQuiet(cooldownMs))
+            {
+                info = null;
+                return false;
+            }
+
+            info = ReadEndpointInfoCore();
+            return true;
+        }
+        finally
+        {
+            Monitor.Exit(_txLock);
+        }
+    }
+
+    private K11AudioEndpointInfo? ReadEndpointInfoCore()
     {
         return WithK11Endpoint((id, friendly, iface, vol) =>
         {
@@ -183,6 +243,7 @@ public sealed class CoreAudioVolumeService
         Func<float, float, IReadOnlyList<VolumeStep>> buildSteps,
         out string? error)
     {
+        using var txScope = BeginTransferBatch();
         lock (_txLock)
         {
             try

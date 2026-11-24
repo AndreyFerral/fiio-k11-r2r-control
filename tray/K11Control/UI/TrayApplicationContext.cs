@@ -189,7 +189,11 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void RefreshDeviceState()
     {
-        var endpoint = _audio.TryGetEndpointInfo();
+        // Skip background audio polling while UAC2 transport is modifying channel volumes or settling,
+        // so transient nibble levels never trigger the L/R balance warning.
+        if (_dac.HasPendingWork || !_audio.TryGetEndpointInfoIfIdle(out var endpoint))
+            return;
+
         bool hidPresent = _hid.EnumerateCollections().Count > 0;
         bool connectedNow = hidPresent || endpoint is not null;
         bool mutedNow = endpoint?.Muted ?? false;
@@ -511,8 +515,18 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private K11AudioEndpointInfo? FixAudioBalanceFromUi()
     {
-        _audio.TryBalanceChannels(out var updated, out _);
-        RefreshDeviceState();
+        if (_audio.TryBalanceChannels(out var updated, out _) && updated is not null)
+        {
+            _lastAudioEndpoint = updated;
+            _lastAudioEndpointId = updated.DeviceId;
+            _dacConnected = true;
+            _audioMuted = updated.Muted;
+            UpdateUiIndicators();
+        }
+        else
+        {
+            RefreshDeviceState();
+        }
         return updated ?? _lastAudioEndpoint;
     }
 
