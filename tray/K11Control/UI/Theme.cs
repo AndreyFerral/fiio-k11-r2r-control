@@ -261,7 +261,17 @@ internal sealed class DarkMenuRenderer : ToolStripProfessionalRenderer
             using var brush = new SolidBrush(Theme.BgMenuHover);
             e.Graphics.FillPath(brush, path);
         }
+
+        if (e.Item is ToolStripMenuItem mi && mi.Enabled && IsAccentAmberItem(mi))
+        {
+            var dot = new RectangleF(11f, e.Item.Height / 2f - 3.5f, 7f, 7f);
+            using var dotBrush = new SolidBrush(Theme.AccentAmber);
+            e.Graphics.FillEllipse(dotBrush, dot);
+        }
     }
+
+    private static bool IsAccentAmberItem(ToolStripMenuItem mi) =>
+        mi.ForeColor == Theme.AccentAmberHover || mi.ForeColor == Theme.AccentAmber;
 
     protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
     {
@@ -290,8 +300,9 @@ internal sealed class DarkMenuRenderer : ToolStripProfessionalRenderer
             }
             else
             {
-                e.TextColor = mi.Checked ? Theme.Accent : Theme.TextPrimary;
-                e.TextFont = mi.Checked ? Theme.FontBodyBold : Theme.FontBody;
+                bool customAmber = IsAccentAmberItem(mi);
+                e.TextColor = mi.Checked ? Theme.Accent : (customAmber ? mi.ForeColor : Theme.TextPrimary);
+                e.TextFont = (mi.Checked || customAmber) ? Theme.FontBodyBold : Theme.FontBody;
             }
         }
         else

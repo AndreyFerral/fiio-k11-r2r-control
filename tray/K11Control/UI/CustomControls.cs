@@ -55,6 +55,7 @@ internal sealed class RoundedCardPanel : Panel
         var rect = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
         using var path = Theme.CreateRoundedPath(rect, CornerRadius);
         using var fill = new SolidBrush(CardColor);
+        e.Graphics.FillPath(fill, path);
         using (var pen = new Pen(BorderColor, 1f))
             e.Graphics.DrawPath(pen, path);
         base.OnPaint(e);
@@ -1530,6 +1531,76 @@ internal sealed class SidebarStatusCard : Control
         TextRenderer.DrawText(g, text, Theme.FontSmall,
             new Rectangle(23, y, Width - 29, h),
             textColor,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+    }
+}
+
+internal sealed class SidebarBalanceButton : Control
+{
+    private bool _hovered;
+    private bool _pressed;
+    private string _topText = "";
+    private string _bottomText = "";
+
+    public string TopText => _topText;
+    public string BottomText => _bottomText;
+
+    public SidebarBalanceButton()
+    {
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+        SetStyle(ControlStyles.StandardDoubleClick, false);
+        Cursor = Cursors.Hand;
+        Size = new Size(164, 50);
+    }
+
+    public void UpdateLabels(string topText, string bottomText)
+    {
+        if (string.Equals(_topText, topText, StringComparison.Ordinal)
+            && string.Equals(_bottomText, bottomText, StringComparison.Ordinal))
+            return;
+
+        _topText = topText;
+        _bottomText = bottomText;
+        Invalidate();
+    }
+
+    protected override void OnMouseEnter(EventArgs e) { _hovered = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { _hovered = false; _pressed = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { if (Enabled && e.Button == MouseButtons.Left) { _pressed = true; Invalidate(); } base.OnMouseDown(e); }
+    protected override void OnMouseUp(MouseEventArgs e) { _pressed = false; Invalidate(); base.OnMouseUp(e); }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        g.Clear(Theme.BgSidebar);
+
+        var outer = new RectangleF(0.5f, 0.5f, Width - 2f, Height - 2f);
+        using var outerPath = Theme.CreateRoundedPath(outer, 8f);
+        Color bgColor = _pressed
+            ? Color.FromArgb(30, 25, 18)
+            : (_hovered ? Color.FromArgb(46, 38, 24) : Theme.BgInput);
+        using (var bg = new SolidBrush(bgColor))
+            g.FillPath(bg, outerPath);
+
+        Color rimColor = _hovered ? Theme.AccentAmberHover : Color.FromArgb(145, Theme.AccentAmber);
+        using (var rim = new Pen(rimColor, 1.2f))
+            g.DrawPath(rim, outerPath);
+
+        Color dotColor = _hovered ? Theme.AccentAmberHover : Theme.AccentAmber;
+        using (var b = new SolidBrush(dotColor))
+            g.FillEllipse(b, 10f, 3f + (22f - 7.5f) / 2f, 7.5f, 7.5f);
+
+        TextRenderer.DrawText(g, _topText, Theme.FontSmall,
+            new Rectangle(23, 3, Width - 29, 22),
+            Theme.AccentAmberHover,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+
+        Color subColor = _hovered ? Theme.TextPrimary : Theme.TextSecondary;
+        TextRenderer.DrawText(g, _bottomText, Theme.FontSmall,
+            new Rectangle(23, 24, Width - 29, 22),
+            subColor,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
     }
 }

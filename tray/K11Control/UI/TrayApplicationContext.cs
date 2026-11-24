@@ -74,7 +74,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _balanceTrayItem = new ToolStripMenuItem("", null, (_, _) => FixAudioBalanceFromUi())
         {
             Visible = false,
-            ForeColor = Color.FromArgb(251, 191, 36)
+            ForeColor = Theme.AccentAmberHover
         };
         _outputToggleItem = new ToolStripMenuItem("", null, (_, _) => SendOutputAction(OutputAction.Toggle, "Toggle PO <-> PRE"));
         _outputPreItem = new ToolStripMenuItem("", null, (_, _) => SendOutputAction(OutputAction.PRE, "Switch to PRE"));
@@ -117,7 +117,8 @@ public sealed class TrayApplicationContext : ApplicationContext
             ShowImageMargin = true,
             ShowCheckMargin = true,
             BackColor = Theme.BgSidebar,
-            ForeColor = Theme.TextPrimary
+            ForeColor = Theme.TextPrimary,
+            Font = Theme.FontBody
         };
         menu.Items.AddRange([
             _statusItem,
@@ -250,7 +251,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             && CoreAudioVolumeService.IsChannelImbalanced(_lastAudioEndpoint.Ch0Db, _lastAudioEndpoint.Ch1Db);
         _balanceTrayItem.Visible = imbalanced;
         if (imbalanced && _lastAudioEndpoint is not null)
-            _balanceTrayItem.Text = AppStrings.TrayBalanceFix(lang, _lastAudioEndpoint.Ch0Db, _lastAudioEndpoint.Ch1Db);
+            _balanceTrayItem.Text = AppStrings.TrayBalanceFix(lang);
 
         _outputToggleItem.Text = AppStrings.OutToggleBtn(lang);
         _outputPreItem.Text = AppStrings.OutPreBtn(lang);

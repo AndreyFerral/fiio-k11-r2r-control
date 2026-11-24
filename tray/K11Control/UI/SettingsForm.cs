@@ -65,10 +65,7 @@ public sealed class SettingsForm : Form
     private ModernToggleSwitch _enforceOutputSwitch = null!;
     private SegmentedToggle<OutputMode> _startupOutputToggle = null!;
     private ModernButton _rebootBtn = null!;
-    private RoundedCardPanel _balanceCard = null!;
-    private Label _balanceLbl = null!;
-    private Label _balanceTargetLbl = null!;
-    private ModernButton _balanceFixBtn = null!;
+    private SidebarBalanceButton _balanceCard = null!;
     private readonly ToolTip _toolTip = new();
 
     // LCD page (Normal / Text / Segments with saved presets & up to 4-frame animation)
@@ -279,15 +276,9 @@ public sealed class SettingsForm : Form
                 _audioEndpoint.Ch0Db, _audioEndpoint.Ch1Db, _audioEndpoint.MinDb, _audioEndpoint.MaxDb);
             string warnText = AppStrings.OutBalanceWarn(_config.Language, _audioEndpoint.Ch0Db, _audioEndpoint.Ch1Db);
             string targetText = AppStrings.SidebarBalanceTarget(_config.Language, targetDb);
-            string btnText = AppStrings.OutBalanceFixBtn(_config.Language);
-            if (!string.Equals(_balanceLbl.Text, warnText, StringComparison.Ordinal))
-                _balanceLbl.Text = warnText;
-            if (!string.Equals(_balanceTargetLbl.Text, targetText, StringComparison.Ordinal))
-                _balanceTargetLbl.Text = targetText;
-            if (!string.Equals(_balanceFixBtn.Text, btnText, StringComparison.Ordinal))
-                _balanceFixBtn.Text = btnText;
-            if (!_balanceFixBtn.Enabled)
-                _balanceFixBtn.Enabled = true;
+            _balanceCard.UpdateLabels(warnText, targetText);
+            if (!_balanceCard.Enabled)
+                _balanceCard.Enabled = true;
         }
     }
 
@@ -350,57 +341,21 @@ public sealed class SettingsForm : Form
             sidebar.Controls.Add(btn);
         }
 
-        // Conditional sidebar alert above status card (visible only when K11 R2R audio is active and L != R)
-        _balanceCard = new RoundedCardPanel
+        // Conditional full-surface clickable balance button above status card (visible only when K11 R2R audio is active and L != R)
+        _balanceCard = new SidebarBalanceButton
         {
-            Location = new Point(11, 336),
-            Size = new Size(164, 54),
-            CornerRadius = 8f,
-            CardColor = Color.FromArgb(34, 29, 24),
-            BorderColor = Color.FromArgb(145, Theme.AccentAmber),
+            Location = new Point(11, 340),
+            Size = new Size(164, 50),
             Visible = false
         };
-        _balanceCard.Paint += (_, e) =>
+        _balanceCard.Click += (_, _) =>
         {
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            using var dotBrush = new SolidBrush(Theme.AccentAmber);
-            e.Graphics.FillEllipse(dotBrush, 10f, 10.5f, 7.5f, 7.5f);
-        };
-        _balanceLbl = new Label
-        {
-            Font = Theme.FontSmall,
-            ForeColor = Theme.AccentAmberHover,
-            Location = new Point(20, 5),
-            Size = new Size(136, 18),
-            TextAlign = ContentAlignment.MiddleLeft,
-            UseMnemonic = false
-        };
-        _balanceTargetLbl = new Label
-        {
-            Font = Theme.FontSmall,
-            ForeColor = Theme.TextSecondary,
-            Location = new Point(10, 25),
-            Size = new Size(54, 22),
-            TextAlign = ContentAlignment.MiddleLeft,
-            UseMnemonic = false
-        };
-        _balanceFixBtn = new ModernButton
-        {
-            Variant = ButtonVariant.Amber,
-            CornerRadius = 5f,
-            Font = Theme.FontSmall,
-            Location = new Point(66, 25),
-            Size = new Size(88, 22)
-        };
-        _balanceFixBtn.Click += (_, _) =>
-        {
-            _balanceFixBtn.Enabled = false;
+            _balanceCard.Enabled = false;
             var updated = _onFixBalance();
             if (updated is not null)
                 _audioEndpoint = updated;
             UpdateChannelBalanceBanner();
         };
-        _balanceCard.Controls.AddRange([_balanceLbl, _balanceTargetLbl, _balanceFixBtn]);
 
         _statusCard = new SidebarStatusCard
         {

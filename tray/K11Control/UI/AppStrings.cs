@@ -36,11 +36,11 @@ internal static class AppStrings
 
     public static string OutBalanceWarn(AppLanguage l, float ch0Db, float ch1Db) =>
         Tr(l,
-            $"Баланс: {FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)} дБ",
-            $"Balance: {FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)} dB");
+            $"Баланс: {FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)}",
+            $"Balance: {FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)}");
 
     public static string SidebarBalanceTarget(AppLanguage l, float targetDb) =>
-        Tr(l, $"→ {FormatDbShort(targetDb)} дБ", $"→ {FormatDbShort(targetDb)} dB");
+        Tr(l, $"Выровнять → {FormatDbShort(targetDb)} дБ", $"Fix L/R → {FormatDbShort(targetDb)} dB");
 
     public static string OutBalanceFixBtn(AppLanguage l) => Tr(l, "Выровнять", "Balance");
 
@@ -225,9 +225,9 @@ internal static class AppStrings
     public static string TrayStatus(AppLanguage l, bool online) => online
         ? Tr(l, "FiiO K11 R2R  •  Подключён", "FiiO K11 R2R  •  Connected")
         : Tr(l, "FiiO K11 R2R  •  Отключён", "FiiO K11 R2R  •  Disconnected");
-    public static string TrayBalanceFix(AppLanguage l, float ch0Db, float ch1Db) => Tr(l,
-        $"Выровнять баланс ({FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)} дБ)",
-        $"Fix L/R balance ({FormatDbShort(ch0Db)} / {FormatDbShort(ch1Db)} dB)");
+    public static string TrayBalanceFix(AppLanguage l) => Tr(l,
+        "Выровнять баланс L/R",
+        "Fix L/R balance");
     public static string TrayTooltip(AppLanguage l, bool online, bool muted = false, bool imbalanced = false)
     {
         if (!online)
