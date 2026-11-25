@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <Version>1.0.0</Version>
+    <Version>1.0.2</Version>
     <Product>FiiO K11 R2R Control</Product>
     <Description>System tray control app for FiiO K11 R2R DAC/Amp (FW M79)</Description>
     <Nullable>enable</Nullable>
