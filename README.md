@@ -32,29 +32,31 @@
 
 <table>
   <tr>
-    <td align="center" width="33%">
+    <td align="center" width="50%">
       <img src="docs/images/en/ui-output.png" alt="Output and Modes" /><br />
       <sub><b>Output &amp; Modes</b></sub>
     </td>
-    <td align="center" width="33%">
+    <td align="center" width="50%">
       <img src="docs/images/en/ui-lcd-screen-off.png" alt="LCD Turn Off Display" /><br />
       <sub><b>LCD: Turn Off Display</b></sub>
     </td>
-    <td align="center" width="33%">
+  </tr>
+  <tr>
+    <td align="center" width="50%">
       <img src="docs/images/en/ui-lcd-text.png" alt="LCD Custom Text" /><br />
       <sub><b>LCD: Custom Text</b></sub>
     </td>
-  </tr>
-  <tr>
-    <td align="center" width="33%">
+    <td align="center" width="50%">
       <img src="docs/images/en/ui-lcd-segments.png" alt="LCD Segment Editor" /><br />
       <sub><b>LCD: Segments &amp; Animation</b></sub>
     </td>
-    <td align="center" width="33%">
+  </tr>
+  <tr>
+    <td align="center" width="50%">
       <img src="docs/images/en/ui-rgb.png" alt="RGB Lighting" /><br />
       <sub><b>RGB Lighting (3 Zones)</b></sub>
     </td>
-    <td align="center" width="33%">
+    <td align="center" width="50%">
       <img src="docs/images/en/ui-hotkeys.png" alt="Global Hotkeys" /><br />
       <sub><b>Global Hotkeys</b></sub>
     </td>
@@ -69,7 +71,7 @@
 1. Download **`FiiO-K11-R2R-Control-v*-win-x64.zip`** from **Releases**:
    - **`k11R2R_m79_full.hex`** *(recommended)* — full USB control for `K11Control.exe` + `LO` disabled.
    - **`k11R2R_m79_no-lo.hex`** — minimal firmware-only patch (only removes fixed max-volume `LO`, without USB control or extra hooks).
-   - **`K11Control.exe`** — standalone tray app (self-contained, no `.NET Runtime` needed).
+   - **`K11Control.exe`** — standalone tray app (`~68.5 MiB` / `~72 MB` single-file binary because it bundles the full self-contained `.NET 8 Desktop Runtime`, so it works out of the box on clean Windows 10/11 without installing `.NET`).
 2. Download the [official FiiO K11 R2R M79 package](https://forum.fiio.com/note/showNoteId.html?id=202507021516543188544) to get **`GD32_MCU_HID_IAP_Programmer.exe`** and the stock **`k11R2R_app1_m79.hex`** (kept for rollback).
 
 ### 2. Flash the Firmware
@@ -96,6 +98,9 @@ powershell -ExecutionPolicy Bypass -File scripts\build_dist.ps1 -IncludeTests
 
 # Also package a clean GitHub Release ZIP into release\
 powershell -ExecutionPolicy Bypass -File scripts\build_dist.ps1 -Release -IncludeTests
+
+# Optional: lightweight (< 1 MB) framework-dependent build (requires .NET 8 Desktop Runtime installed)
+powershell -ExecutionPolicy Bypass -File scripts\build_dist.ps1 -FrameworkDependent
 ```
 
 ---

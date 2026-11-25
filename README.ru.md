@@ -32,29 +32,31 @@
 
 <table>
   <tr>
-    <td align="center" width="33%">
+    <td align="center" width="50%">
       <img src="docs/images/ru/ui-output.png" alt="Выход и режимы" /><br />
       <sub><b>Выход и режимы</b></sub>
     </td>
-    <td align="center" width="33%">
+    <td align="center" width="50%">
       <img src="docs/images/ru/ui-lcd-screen-off.png" alt="LCD — Выключить экран" /><br />
       <sub><b>LCD: Выключить экран</b></sub>
     </td>
-    <td align="center" width="33%">
+  </tr>
+  <tr>
+    <td align="center" width="50%">
       <img src="docs/images/ru/ui-lcd-text.png" alt="LCD — Текст и кириллица" /><br />
       <sub><b>LCD: Свой текст</b></sub>
     </td>
-  </tr>
-  <tr>
-    <td align="center" width="33%">
+    <td align="center" width="50%">
       <img src="docs/images/ru/ui-lcd-segments.png" alt="LCD — Палочки и анимация" /><br />
       <sub><b>LCD: Палочки и анимация</b></sub>
     </td>
-    <td align="center" width="33%">
+  </tr>
+  <tr>
+    <td align="center" width="50%">
       <img src="docs/images/ru/ui-rgb.png" alt="Подсветка RGB" /><br />
       <sub><b>Подсветка RGB (3 зоны)</b></sub>
     </td>
-    <td align="center" width="33%">
+    <td align="center" width="50%">
       <img src="docs/images/ru/ui-hotkeys.png" alt="Горячие клавиши" /><br />
       <sub><b>Горячие клавиши</b></sub>
     </td>
@@ -69,7 +71,7 @@
 1. Скачайте **`FiiO-K11-R2R-Control-v*-win-x64.zip`** из раздела **Releases**:
    - **`k11R2R_m79_full.hex`** *(рекомендуется)* — полная прошивка для управления из `K11Control.exe` + отключение `LO`.
    - **`k11R2R_m79_no-lo.hex`** — минимальный патч (убирает только нерегулируемый выход `LO`, без USB-управления и доп. хуков).
-   - **`K11Control.exe`** — автономная программа в трей (`self-contained`, установка `.NET Runtime` не требуется).
+   - **`K11Control.exe`** — автономная программа в трей (`~68.5 МиБ` / `~72 МБ`: в один файл упакован полный `.NET 8 Desktop Runtime`, поэтому она сразу запускается на чистой Windows 10/11 без установки `.NET`).
 2. Скачайте [официальный пакет прошивки M79 от FiiO](https://forum.fiio.com/note/showNoteId.html?id=202507021516543188544) — внутри лежат прошивальщик **`GD32_MCU_HID_IAP_Programmer.exe`** и заводская прошивка **`k11R2R_app1_m79.hex`** (на случай отката).
 
 ### 2. Порядок прошивки
@@ -96,6 +98,9 @@ powershell -ExecutionPolicy Bypass -File scripts\build_dist.ps1 -IncludeTests
 
 # Плюс упаковка чистого ZIP-архива для GitHub Releases в release\
 powershell -ExecutionPolicy Bypass -File scripts\build_dist.ps1 -Release -IncludeTests
+
+# Опционально: лёгкий (< 1 МБ) framework-dependent exe (требует установленный .NET 8 Desktop Runtime)
+powershell -ExecutionPolicy Bypass -File scripts\build_dist.ps1 -FrameworkDependent
 ```
 
 ---
