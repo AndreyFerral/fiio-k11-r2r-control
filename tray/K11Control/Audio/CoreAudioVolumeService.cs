@@ -119,9 +119,9 @@ public sealed class CoreAudioVolumeService
 
                 return new K11AudioEndpointInfo(
                     id, friendly, iface, masterDb, masterScalar, afterCh0, afterCh1, muted, minDb, maxDb, stepDb);
-            });
+            }, out string? comError);
 
-            error = updated is null ? (capturedError ?? "K11 R2R audio endpoint not available") : null;
+            error = updated is null ? (capturedError ?? comError ?? "K11 R2R audio endpoint not available") : null;
             return updated is not null;
         }
     }
@@ -287,7 +287,7 @@ public sealed class CoreAudioVolumeService
                             catch { }
                         }
                     }
-                });
+                }, out string? comError);
 
                 if (found)
                 {
@@ -295,7 +295,7 @@ public sealed class CoreAudioVolumeService
                     return true;
                 }
 
-                error = localError ?? "K11 R2R active audio endpoint not found.";
+                error = localError ?? comError ?? "K11 R2R active audio endpoint not found.";
                 return false;
             }
             catch (Exception ex)
@@ -306,67 +306,96 @@ public sealed class CoreAudioVolumeService
         }
     }
 
-    private static T? WithK11Endpoint<T>(Func<string, string, string, IAudioEndpointVolume, T> action)
-    {
-        var enumType = Type.GetTypeFromCLSID(ClsidMmDeviceEnumerator)
-            ?? throw new PlatformNotSupportedException("MMDeviceEnumerator CLSID unavailable");
+    private static T? WithK11Endpoint<T>(Func<string, string, string, IAudioEndpointVolume, T> action) =>
+        WithK11Endpoint(action, out _);
 
-        var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(enumType)!;
+    private static T? WithK11Endpoint<T>(
+        Func<string, string, string, IAudioEndpointVolume, T> action,
+        out string? comError)
+    {
+        comError = null;
         try
         {
-            Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(0 /* eRender */, DeviceStateActive, out IMMDeviceCollection collection));
+            var enumType = Type.GetTypeFromCLSID(ClsidMmDeviceEnumerator);
+            if (enumType is null)
+            {
+                comError = "MMDeviceEnumerator CLSID unavailable";
+                return default;
+            }
+
+            var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(enumType)!;
             try
             {
-                Marshal.ThrowExceptionForHR(collection.GetCount(out uint count));
-                for (uint i = 0; i < count; i++)
+                Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(0 /* eRender */, DeviceStateActive, out IMMDeviceCollection collection));
+                try
                 {
-                    Marshal.ThrowExceptionForHR(collection.Item(i, out IMMDevice device));
-                    try
+                    Marshal.ThrowExceptionForHR(collection.GetCount(out uint count));
+                    for (uint i = 0; i < count; i++)
                     {
-                        Marshal.ThrowExceptionForHR(device.GetId(out string devId));
-                        Marshal.ThrowExceptionForHR(device.OpenPropertyStore(StgmRead, out IPropertyStore props));
+                        Marshal.ThrowExceptionForHR(collection.Item(i, out IMMDevice device));
                         try
                         {
-                            string friendly = ReadPropString(props, PkeyDeviceFriendlyName);
-                            string iface = ReadPropString(props, PkeyDeviceInterfaceFriendlyName);
-                            string instanceId = ReadPropString(props, PkeyDeviceInstanceId);
-
-                            if (!IsK11R2R(friendly, iface, instanceId))
-                                continue;
-
-                            var iid = IidIAudioEndpointVolume;
-                            Marshal.ThrowExceptionForHR(device.Activate(ref iid, ClsctxAll, IntPtr.Zero, out object rawVol));
+                            Marshal.ThrowExceptionForHR(device.GetId(out string devId));
+                            Marshal.ThrowExceptionForHR(device.OpenPropertyStore(StgmRead, out IPropertyStore props));
                             try
                             {
-                                return action(devId, friendly, iface, (IAudioEndpointVolume)rawVol);
+                                string friendly = ReadPropString(props, PkeyDeviceFriendlyName);
+                                string iface = ReadPropString(props, PkeyDeviceInterfaceFriendlyName);
+                                string instanceId = ReadPropString(props, PkeyDeviceInstanceId);
+
+                                if (!IsK11R2R(friendly, iface, instanceId))
+                                    continue;
+
+                                var iid = IidIAudioEndpointVolume;
+                                Marshal.ThrowExceptionForHR(device.Activate(ref iid, ClsctxAll, IntPtr.Zero, out object rawVol));
+                                try
+                                {
+                                    return action(devId, friendly, iface, (IAudioEndpointVolume)rawVol);
+                                }
+                                finally
+                                {
+                                    Marshal.ReleaseComObject(rawVol);
+                                }
                             }
                             finally
                             {
-                                Marshal.ReleaseComObject(rawVol);
+                                Marshal.ReleaseComObject(props);
                             }
                         }
                         finally
                         {
-                            Marshal.ReleaseComObject(props);
+                            Marshal.ReleaseComObject(device);
                         }
                     }
-                    finally
-                    {
-                        Marshal.ReleaseComObject(device);
-                    }
+                }
+                finally
+                {
+                    Marshal.ReleaseComObject(collection);
                 }
             }
             finally
             {
-                Marshal.ReleaseComObject(collection);
+                Marshal.ReleaseComObject(enumerator);
             }
-        }
-        finally
-        {
-            Marshal.ReleaseComObject(enumerator);
-        }
 
-        return default;
+            return default;
+        }
+        catch (COMException ex)
+        {
+            // Headless environments (e.g. CI VMs with Audiosrv stopped) or unplugged devices fail EnumAudioEndpoints with COMException.
+            comError = ex.Message;
+            return default;
+        }
+        catch (InvalidCastException ex)
+        {
+            comError = ex.Message;
+            return default;
+        }
+        catch (PlatformNotSupportedException ex)
+        {
+            comError = ex.Message;
+            return default;
+        }
     }
 
     private static bool IsK11R2R(string friendly, string iface, string instanceId)

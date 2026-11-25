@@ -502,6 +502,26 @@ Assert(TrayApplicationContext.ComputeSettingsApplyScope(sameCustomRgb, sameCusto
 Assert(TrayApplicationContext.ComputeExplicitSettingsApplyScope(new TrayConfig(), new TrayConfig()) == SyncScope.None,
     "ComputeExplicitSettingsApplyScope stays None when RGB=On and LCD=Normal");
 
+void RunOnStaThread(Action body)
+{
+    Exception? threadEx = null;
+    var sta = new Thread(() =>
+    {
+        try { body(); }
+        catch (Exception ex) { threadEx = ex; }
+    });
+    sta.SetApartmentState(ApartmentState.STA);
+    sta.Start();
+    sta.Join();
+    if (threadEx is not null)
+    {
+        Console.Error.WriteLine($"FAIL: Unhandled STA UI test exception: {threadEx}");
+        failures++;
+    }
+}
+
+RunOnStaThread(() =>
+{
 int hkChangedCount = 0;
 using (var hkBox = new K11Control.UI.HotkeyCaptureBox())
 {
@@ -686,45 +706,36 @@ using (var form = new K11Control.UI.SettingsForm(
         _ => { },
         () => { },
         onApplyWithFeedback: (_, cb) => Task.Run(() => { Thread.Sleep(15); cb(true); }));
-    asyncForm.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
-    asyncForm.Location = new System.Drawing.Point(-32000, -32000);
-    asyncForm.ShowInTaskbar = false;
-    asyncForm.Opacity = 0;
-    asyncForm.Show();
+    asyncForm.CreateControl();
+    _ = asyncForm.Handle;
 
-    try
+    var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+    var applyBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_applyBtn", flags)!.GetValue(asyncForm)!;
+    var applyTimer = (System.Windows.Forms.Timer)typeof(K11Control.UI.SettingsForm).GetField("_applyFeedbackTimer", flags)!.GetValue(asyncForm)!;
+    var applyCurrentEdits = typeof(K11Control.UI.SettingsForm).GetMethod("ApplyCurrentEdits", flags)!;
+    applyTimer.Interval = 50;
+
+    applyCurrentEdits.Invoke(asyncForm, [true]);
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    bool sawApplied = false;
+    bool sawReverted = false;
+    while (sw.ElapsedMilliseconds < 2500)
     {
-        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-        var applyBtn = (Control)typeof(K11Control.UI.SettingsForm).GetField("_applyBtn", flags)!.GetValue(asyncForm)!;
-        var applyTimer = (System.Windows.Forms.Timer)typeof(K11Control.UI.SettingsForm).GetField("_applyFeedbackTimer", flags)!.GetValue(asyncForm)!;
-        var applyCurrentEdits = typeof(K11Control.UI.SettingsForm).GetMethod("ApplyCurrentEdits", flags)!;
-        applyTimer.Interval = 50;
-
-        applyCurrentEdits.Invoke(asyncForm, [true]);
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        bool sawApplied = false;
-        bool sawReverted = false;
-        while (sw.ElapsedMilliseconds < 2000)
+        System.Windows.Forms.Application.DoEvents();
+        if (!sawApplied && applyBtn.Text == "Применено ✓")
+            sawApplied = true;
+        if (sawApplied && applyBtn.Text == "Применить")
         {
-            System.Windows.Forms.Application.DoEvents();
-            if (!sawApplied && applyBtn.Text == "Применено ✓")
-                sawApplied = true;
-            if (sawApplied && applyBtn.Text == "Применить")
-            {
-                sawReverted = true;
-                break;
-            }
-            Thread.Sleep(5);
+            sawReverted = true;
+            break;
         }
+        Thread.Sleep(5);
+    }
 
-        Assert(sawApplied && sawReverted,
-            $"Background worker Apply callback marshals to UI thread and auto-resets via WM_TIMER (applied={sawApplied}, reverted={sawReverted}, final='{applyBtn.Text}')");
-    }
-    finally
-    {
-        asyncForm.Close();
-    }
+    Assert(sawApplied && sawReverted,
+        $"Background worker Apply callback marshals to UI thread and auto-resets via WM_TIMER (applied={sawApplied}, reverted={sawReverted}, final='{applyBtn.Text}')");
 }
+});
 
 // Fractional dB levels restore without rounding drift, and poll skips active UAC2 transfers + cooldown
 {
